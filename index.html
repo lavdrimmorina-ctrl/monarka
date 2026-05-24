@@ -6,11 +6,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MonArka">
-<meta name="theme-color" media="(prefers-color-scheme:dark)" content="#000000">
-<meta name="theme-color" media="(prefers-color-scheme:light)" content="#FFFFFF">
+<meta name="theme-color" media="(prefers-color-scheme:dark)" content="#0d1628">
+<meta name="theme-color" media="(prefers-color-scheme:light)" content="#0d1628">
 <link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon1.png">
-<link rel="apple-touch-icon" sizes="192x192" href="icon-193.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
 <title>MonArka</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -18,50 +18,23 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
 html{touch-action:manipulation;-webkit-text-size-adjust:100%}
 :root{
-  /* MonArka — Navy + Gold theme (dark by default, matches logo) */
-  --bg:#000000;
-  --surface:rgba(255,255,255,0.06);
-  --surface2:rgba(255,255,255,0.1);
-  --surface3:rgba(255,255,255,0.15);
-  --border:rgba(255,255,255,0.09);
-  --border2:rgba(255,255,255,0.16);
-  --text:#f0f4f8;
-  --muted:rgba(240,244,248,0.5);
-  --dim:rgba(240,244,248,0.25);
-  /* Gold — primary accent (crown color) */
-  --lime:#c9a84c;
-  --lime-bg:rgba(201,168,76,0.12);
-  --lime-border:rgba(201,168,76,0.3);
-  --lime-text:#c9a84c;
-  /* Blue — needs category (navy highlight) */
-  --blue:#FFFFFF;
-  --blue-bg:rgba(126,184,232,0.1);
-  /* Amber — wants category (warm gold) */
-  --amber:#e8b86d;
-  --amber-bg:rgba(232,184,109,0.1);
-  /* Red */
-  --red:#ff6b6b;
-  --red-bg:rgba(255,107,107,0.1);
-  --red-border:rgba(255,107,107,0.3);
-  /* Numpad */
-  --nb-bg:rgba(255,255,255,0.07);
-  --nb-border:rgba(255,255,255,0.1);
-  --nb-active:rgba(255,255,255,0.15);
   --safe-top:env(safe-area-inset-top,44px);
 }
-@media(prefers-color-scheme:light){:root{
-  --bg:#FFFFFF;
+
+/* ── DARK THEME (default) ── */
+:root, html.theme-dark, html.theme-system{
+  --bg:#000000;
   --surface:rgba(255,255,255,0.07);
   --surface2:rgba(255,255,255,0.11);
   --surface3:rgba(255,255,255,0.16);
-  --border:rgba(255,255,255,0.1);
-  --border2:rgba(255,255,255,0.18);
+  --border:rgba(255,255,255,0.09);
+  --border2:rgba(255,255,255,0.17);
   --text:#f0f4f8;
-  --muted:rgba(240,244,248,0.52);
-  --dim:rgba(240,244,248,0.27);
+  --muted:rgba(240,244,248,0.5);
+  --dim:rgba(240,244,248,0.25);
   --lime:#c9a84c;
-  --lime-bg:rgba(201,168,76,0.13);
-  --lime-border:rgba(201,168,76,0.32);
+  --lime-bg:rgba(201,168,76,0.12);
+  --lime-border:rgba(201,168,76,0.3);
   --lime-text:#c9a84c;
   --blue:#7eb8e8;
   --blue-bg:rgba(126,184,232,0.1);
@@ -71,10 +44,65 @@ html{touch-action:manipulation;-webkit-text-size-adjust:100%}
   --red-bg:rgba(255,107,107,0.1);
   --red-border:rgba(255,107,107,0.3);
   --nb-bg:rgba(255,255,255,0.08);
-  --nb-border:rgba(255,255,255,0.12);
-  --nb-active:rgba(255,255,255,0.18);
-  --safe-top:env(safe-area-inset-top,44px);
-}}
+  --nb-border:rgba(255,255,255,0.11);
+  --nb-active:rgba(255,255,255,0.16);
+}
+
+/* ── LIGHT THEME ── */
+html.theme-light{
+  --bg:#f0f2f5;
+  --surface:#ffffff;
+  --surface2:#e8eaed;
+  --surface3:#dde0e4;
+  --border:rgba(0,0,0,0.08);
+  --border2:rgba(0,0,0,0.14);
+  --text:#0d1117;
+  --muted:rgba(13,17,23,0.52);
+  --dim:rgba(13,17,23,0.3);
+  --lime:#b8922a;
+  --lime-bg:rgba(184,146,42,0.1);
+  --lime-border:rgba(184,146,42,0.28);
+  --lime-text:#8a6a18;
+  --blue:#1a5fa8;
+  --blue-bg:rgba(26,95,168,0.09);
+  --amber:#9a5e00;
+  --amber-bg:rgba(154,94,0,0.09);
+  --red:#cc2222;
+  --red-bg:rgba(204,34,34,0.08);
+  --red-border:rgba(204,34,34,0.22);
+  --nb-bg:#ffffff;
+  --nb-border:rgba(0,0,0,0.1);
+  --nb-active:#e0e2e6;
+}
+
+/* ── SYSTEM: follow OS ── */
+@media(prefers-color-scheme:light){
+  html.theme-system{
+    --bg:#f0f2f5;
+    --surface:#ffffff;
+    --surface2:#e8eaed;
+    --surface3:#dde0e4;
+    --border:rgba(0,0,0,0.08);
+    --border2:rgba(0,0,0,0.14);
+    --text:#0d1117;
+    --muted:rgba(13,17,23,0.52);
+    --dim:rgba(13,17,23,0.3);
+    --lime:#b8922a;
+    --lime-bg:rgba(184,146,42,0.1);
+    --lime-border:rgba(184,146,42,0.28);
+    --lime-text:#8a6a18;
+    --blue:#1a5fa8;
+    --blue-bg:rgba(26,95,168,0.09);
+    --amber:#9a5e00;
+    --amber-bg:rgba(154,94,0,0.09);
+    --red:#cc2222;
+    --red-bg:rgba(204,34,34,0.08);
+    --red-border:rgba(204,34,34,0.22);
+    --nb-bg:#ffffff;
+    --nb-border:rgba(0,0,0,0.1);
+    --nb-active:#e0e2e6;
+  }
+}
 html,body{margin:0;padding:0}
 body{
   font-family:'Outfit',sans-serif;
@@ -108,7 +136,7 @@ body{
   border-radius:26px;
   padding:6px 4px;
   border:1px solid rgba(201,168,76,0.2);
-  background:rgba(13,22,40,0.85);
+  background:rgba(0,0,0,0.82);
   backdrop-filter:blur(24px) saturate(180%);
   -webkit-backdrop-filter:blur(24px) saturate(180%);
   box-shadow:
@@ -604,6 +632,23 @@ body{
   cursor:default;
 }
 
+
+/* THEME SELECTOR */
+.theme-opt{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:14px;padding:12px 8px;
+  color:var(--muted);font-family:'Outfit',sans-serif;
+  font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;
+  cursor:pointer;transition:all .18s;
+  display:flex;flex-direction:column;align-items:center;
+}
+.theme-opt:active{transform:scale(0.94)}
+.theme-opt.active{
+  background:var(--lime-bg);
+  border-color:var(--lime-border);
+  color:var(--lime-text);
+}
+
 /* TOAST */
 .toast{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);left:50%;transform:translateX(-50%) translateY(14px);background:var(--surface3);border:1px solid var(--border2);color:var(--text);padding:10px 20px;border-radius:50px;font-size:13px;font-weight:500;opacity:0;transition:all .28s cubic-bezier(.34,1.56,.64,1);pointer-events:none;white-space:nowrap;z-index:9999;letter-spacing:0.04em}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -862,7 +907,22 @@ body{
   <!-- ══ SETTINGS ══ -->
   <div class="page" id="pg-settings">
     <div class="scroll-area">
-      <div class="set-sect" style="margin-top:4px">Salary</div>
+      <div class="set-sect" style="margin-top:4px">Appearance</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+        <button class="theme-opt" id="theme-dark" onclick="setTheme('dark')">
+          <div style="font-size:20px;margin-bottom:4px">🌙</div>
+          <div>Dark</div>
+        </button>
+        <button class="theme-opt" id="theme-light" onclick="setTheme('light')">
+          <div style="font-size:20px;margin-bottom:4px">☀️</div>
+          <div>Light</div>
+        </button>
+        <button class="theme-opt" id="theme-system" onclick="setTheme('system')">
+          <div style="font-size:20px;margin-bottom:4px">⚙️</div>
+          <div>System</div>
+        </button>
+      </div>
+      <div class="set-sect">Salary</div>
       <div class="fl-group"><div class="fl-lbl">Monthly net (€)</div><input class="fl-input" type="number" id="s-sal" placeholder="e.g. 800" inputmode="decimal"></div>
       <div class="set-sect">Payday</div>
       <div class="fl-group"><div class="fl-lbl">Day of month</div><input class="fl-input" type="number" id="s-pay" placeholder="25" min="1" max="31" inputmode="numeric"></div>
@@ -2025,6 +2085,43 @@ function useScan(){
   scanResult = null;
 }
 
+
+// ── THEME MANAGEMENT ──────────────────────────────────────────────────────
+function setTheme(mode){
+  S.theme = mode;
+  sv();
+  applyTheme(mode);
+  updateThemeBtns(mode);
+  hap('light');
+  toast('Theme updated', 'ok');
+}
+
+function applyTheme(mode){
+  const html = document.documentElement;
+  html.className = html.className
+    .replace(/theme-\S+/g, '')
+    .trim();
+  html.classList.add('theme-' + mode);
+  // Update tab bar bg for light/dark
+  const tabs = document.getElementById('tabs-bar');
+  if(tabs){
+    if(mode === 'light'){
+      tabs.style.background = 'rgba(240,242,245,0.88)';
+      tabs.style.borderColor = 'rgba(184,146,42,0.2)';
+    } else {
+      tabs.style.background = 'rgba(0,0,0,0.82)';
+      tabs.style.borderColor = 'rgba(201,168,76,0.2)';
+    }
+  }
+}
+
+function updateThemeBtns(mode){
+  ['dark','light','system'].forEach(m => {
+    const btn = document.getElementById('theme-' + m);
+    if(btn) btn.className = 'theme-opt' + (m === mode ? ' active' : '');
+  });
+}
+
 // ── SETTINGS ─────────────────────────────────────────────────────────────
 function loadForm(){
   document.getElementById('s-sal').value=S.salary||'';
@@ -2033,6 +2130,7 @@ function loadForm(){
   document.getElementById('s-wp').value=S.wp||30;
   document.getElementById('s-sp').value=S.sp||20;
   document.getElementById('s-key').value=S.key||'';
+  updateThemeBtns(S.theme||'dark');
   document.getElementById('s-worker').value=S.workerUrl||'';
   updateNotifBtn();
 }
@@ -2076,6 +2174,10 @@ document.getElementById('hdr-date').textContent=mo();
 document.getElementById('ob-btn').addEventListener('click', obNext);
 updateNotifBtn();
 document.getElementById('ob-skip').addEventListener('click', obFinish);
+// Apply saved theme on load
+const savedTheme = S.theme || 'dark';
+applyTheme(savedTheme);
+updateThemeBtns(savedTheme);
 
 // Show onboarding on first launch
 const shouldOnboard = !S.onboarded && !S.salary;
