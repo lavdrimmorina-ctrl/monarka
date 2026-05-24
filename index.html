@@ -139,12 +139,21 @@ body{
   background:rgba(0,0,0,0.82);
   backdrop-filter:blur(24px) saturate(180%);
   -webkit-backdrop-filter:blur(24px) saturate(180%);
-  box-shadow:
-    0 8px 32px rgba(0,0,0,0.5),
-    0 2px 8px rgba(0,0,0,0.3),
-    inset 0 1px 0 rgba(201,168,76,0.15),
-    inset 0 -1px 0 rgba(0,0,0,0.2);
+  box-shadow:0 8px 32px rgba(0,0,0,0.4),inset 0 1px 0 rgba(201,168,76,0.12);
   overflow:hidden;
+  transition:background .3s,border-color .3s;
+}
+html.theme-light .tabs{
+  background:rgba(240,242,245,0.92)!important;
+  border-color:rgba(184,146,42,0.25)!important;
+  box-shadow:0 8px 24px rgba(0,0,0,0.12),inset 0 1px 0 rgba(255,255,255,0.8)!important;
+}
+html.theme-system .tabs{background:rgba(0,0,0,0.82)}
+@media(prefers-color-scheme:light){
+  html.theme-system .tabs{
+    background:rgba(240,242,245,0.92)!important;
+    border-color:rgba(184,146,42,0.25)!important;
+  }
 }
 .tabs-pill{
   position:absolute;
@@ -154,9 +163,13 @@ body{
   border-radius:22px;
   border:1px solid rgba(201,168,76,0.35);
   box-shadow:0 2px 12px rgba(201,168,76,0.15),inset 0 1px 0 rgba(201,168,76,0.25);
-  transition:left .28s cubic-bezier(.4,0,.2,1),width .28s cubic-bezier(.4,0,.2,1);
+  transition:left .28s cubic-bezier(.4,0,.2,1),width .28s cubic-bezier(.4,0,.2,1),background .3s;
   pointer-events:none;
   z-index:0;
+}
+html.theme-light .tabs-pill{
+  background:rgba(184,146,42,0.18)!important;
+  border-color:rgba(184,146,42,0.4)!important;
 }
 @media(prefers-color-scheme:dark){
   .tabs{
@@ -1130,7 +1143,11 @@ function movePill(activeBtn){
 // ── HELPERS ───────────────────────────────────────────────────────────────
 const mk=(offset=0)=>{const d=new Date();d.setMonth(d.getMonth()+offset);return d.getFullYear()+'-'+d.getMonth();}
 const myExp=(offset=0)=>(S.expenses||[]).filter(e=>e.m===mk(offset));
-const fmt=n=>'€'+Math.round(n).toLocaleString();
+const fmt=n=>{
+  const v=parseFloat(n)||0;
+  // Show decimals only if not a whole number
+  return '€'+(Number.isInteger(v)?v.toLocaleString():v.toFixed(2));
+};
 const mo=(offset=0)=>{const d=new Date();d.setMonth(d.getMonth()+offset);return d.toLocaleDateString('en-US',{month:'long',year:'numeric'});}
 
 // ── RECURRING AUTO-LOG ────────────────────────────────────────────────────
@@ -1773,7 +1790,7 @@ async function runAI(){
   exps.forEach(e=>{if(e.c==='needs')n+=e.a;else if(e.c==='wants')w+=e.a;else s+=e.a;});
   const total=n+w+s,sal=S.salary||0;
   const prompt=`Sharp personal finance advisor. My ${mo(reportOffset)} spending:
-Salary €${sal} | Needs €${n.toFixed(0)} (target €${(sal*S.np/100).toFixed(0)}) | Wants €${w.toFixed(0)} (target €${(sal*S.wp/100).toFixed(0)}) | Savings €${s.toFixed(0)} (target €${(sal*S.sp/100).toFixed(0)}) | Total €${total.toFixed(0)} | Left €${Math.max(0,sal-total).toFixed(0)}
+Salary €${sal} | Needs €${n} (target €${(sal*S.np/100).toFixed(0)}) | Wants €${w} (target €${(sal*S.wp/100).toFixed(0)}) | Savings €${s} (target €${(sal*S.sp/100).toFixed(0)}) | Total €${total} | Left €${Math.max(0,sal-total).toFixed(0)}
 Top: ${[...exps].sort((a,b)=>b.a-a.a).slice(0,3).map(e=>e.n+' €'+Math.round(e.a)).join(', ')}
 3 sentences max. Honest, direct. What's good, what's bad, one action for next month.`;
   try{
@@ -2036,7 +2053,7 @@ async function analyseReceipt(dataUrl){
 
     scanResult = parsed;
     spinEl.style.display = 'none';
-    document.getElementById('scanner-amt').textContent = '€' + parseFloat(parsed.amount).toFixed(2);
+    document.getElementById('scanner-amt').textContent = fmt(parsed.amount);
     document.getElementById('scanner-desc').textContent = parsed.description || 'Expense';
     document.getElementById('scanner-result').style.display = 'block';
     hap('success');
@@ -2097,22 +2114,43 @@ function setTheme(mode){
 }
 
 function applyTheme(mode){
-  const html = document.documentElement;
-  html.className = html.className
-    .replace(/theme-\S+/g, '')
-    .trim();
-  html.classList.add('theme-' + mode);
-  // Update tab bar bg for light/dark
+  const root = document.documentElement;
+  // Remove all theme classes
+  root.classList.remove('theme-dark','theme-light','theme-system');
+  root.classList.add('theme-' + mode);
+
+  // Determine if we're actually in light mode
+  const isLight = mode === 'light' ||
+    (mode === 'system' && window.matchMedia('(prefers-color-scheme:light)').matches);
+
+  // Force body background immediately
+  document.body.style.background = isLight ? '#f0f2f5' : '#000000';
+
+  // Update tab bar
   const tabs = document.getElementById('tabs-bar');
   if(tabs){
-    if(mode === 'light'){
-      tabs.style.background = 'rgba(240,242,245,0.88)';
-      tabs.style.borderColor = 'rgba(184,146,42,0.2)';
-    } else {
-      tabs.style.background = 'rgba(0,0,0,0.82)';
-      tabs.style.borderColor = 'rgba(201,168,76,0.2)';
-    }
+    tabs.style.background = isLight
+      ? 'rgba(240,242,245,0.92)'
+      : 'rgba(0,0,0,0.85)';
+    tabs.style.borderColor = isLight
+      ? 'rgba(184,146,42,0.25)'
+      : 'rgba(201,168,76,0.2)';
   }
+
+  // Update tab bar pill
+  const pill = document.getElementById('tabs-pill');
+  if(pill){
+    pill.style.background = isLight
+      ? 'rgba(184,146,42,0.15)'
+      : 'rgba(201,168,76,0.18)';
+    pill.style.borderColor = isLight
+      ? 'rgba(184,146,42,0.4)'
+      : 'rgba(201,168,76,0.35)';
+  }
+
+  // Update header
+  const hdr = document.querySelector('.hdr');
+  if(hdr) hdr.style.background = isLight ? '#f0f2f5' : '#000000';
 }
 
 function updateThemeBtns(mode){
@@ -2178,6 +2216,10 @@ document.getElementById('ob-skip').addEventListener('click', obFinish);
 const savedTheme = S.theme || 'dark';
 applyTheme(savedTheme);
 updateThemeBtns(savedTheme);
+// Re-apply when system theme changes (for system mode)
+window.matchMedia('(prefers-color-scheme:light)').addEventListener('change', () => {
+  if((S.theme || 'dark') === 'system') applyTheme('system');
+});
 
 // Show onboarding on first launch
 const shouldOnboard = !S.onboarded && !S.salary;
