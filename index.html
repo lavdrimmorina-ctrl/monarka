@@ -719,13 +719,20 @@ html.theme-light .tabs-pill{
 .toast.warn{color:var(--red);border-color:var(--red-border);background:var(--red-bg)}
 </style>
 </head>
-<body></div>
+<body>
 
 <!-- LOCK SCREEN -->
 <div class="lock-screen hidden" id="lock-screen">
   <div class="lock-logo">👑</div>
   <div class="lock-app-name">Mon<span>Arka</span></div>
   <div class="lock-sub" id="lock-sub">Enter your PIN to continue.</div>
+  <button class="lock-btn" id="faceid-btn" onclick="authenticateBiometric()" style="display:flex; margin-bottom:10px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="1.5">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+      <path d="M12 6v6l4 2"/>
+    </svg>
+  </button>
+  <div class="lock-btn-lbl" id="faceid-lbl" style="margin-bottom:0">or use Face ID</div>
   <div class="lock-btn" id="lock-btn" onclick="authenticate()" style="display:none">
     <svg viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="1.5" style="width:36px;height:36px">
       <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -753,7 +760,6 @@ html.theme-light .tabs-pill{
       <button class="pin-key" onclick="pinPress('0')">0</button>
       <button class="pin-key" onclick="pinDel()">⌫</button>
     </div>
-    
   </div>
 </div>
 
@@ -1022,6 +1028,17 @@ html.theme-light .tabs-pill{
           <div>System</div>
         </button>
       </div>
+
+      <!-- Security section with Face ID toggle -->
+      <div class="set-sect">Security</div>
+      <div class="sync-row" id="biometric-row" style="display:none">
+        <div class="sync-info">
+          <div class="sync-title">Face ID / Touch ID</div>
+          <div class="sync-sub" id="biometric-status">Unlock with your device</div>
+        </div>
+        <div class="toggle-sw" id="biometric-toggle" style="width:44px;height:24px"></div>
+      </div>
+
       <div class="set-sect">Salary</div>
       <div class="fl-group"><div class="fl-lbl">Monthly net (€)</div><input class="fl-input" type="number" id="s-sal" placeholder="e.g. 800" inputmode="decimal"></div>
       <div class="set-sect">Payday</div>
@@ -1104,10 +1121,6 @@ html.theme-light .tabs-pill{
   </button>
 </div>
 
-
-
-
-
 <!-- EDIT EXPENSE MODAL -->
 <div class="edit-modal-wrap" id="edit-modal" onclick="closeEditModal(event)">
   <div class="modal">
@@ -1128,7 +1141,6 @@ html.theme-light .tabs-pill{
     </div>
   </div>
 </div>
-
 
 <!-- NET SAVINGS MODAL -->
 <div class="modal-wrap" id="net-modal" onclick="closeNetModal(event)">
@@ -1161,7 +1173,7 @@ html.theme-light .tabs-pill{
 
 <script>
 // ── STATE ─────────────────────────────────────────────────────────────────
-const DEF={salary:0,payday:25,np:50,wp:30,sp:20,key:'',expenses:[],goals:[],recurring:[]};
+const DEF={salary:0,payday:25,np:50,wp:30,sp:20,key:'',expenses:[],goals:[],recurring:[], biometricEnabled:false, biometricCredentialId:null};
 let S={...DEF};
 let amt='',cat='',gEmoji='🎯',isRecurring=false,recFreq='monthly';
 let activeFilter='all',reportOffset=0;
@@ -1184,8 +1196,125 @@ function hap(t='light'){
   }
 }
 
+// ── BIOMETRIC (Face ID) ──────────────────────────────────────────────────
+async function isBiometricAvailable() {
+  try {
+    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  } catch(e) { return false; }
+}
+
+async function registerBiometric() {
+  if (!S.biometricEnabled) return false;
+  try {
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const credential = await navigator.credentials.create({
+      publicKey: {
+        challenge,
+        rp: { name: "MonArka", id: window.location.hostname },
+        user: {
+          id: new TextEncoder().encode("monarka-user"),
+          name: "monarka@local",
+          displayName: "MonArka User"
+        },
+        pubKeyCredParams: [{ alg: -7, type: "public-key" }],
+        authenticatorSelection: { userVerification: "required", authenticatorAttachment: "platform" },
+        timeout: 60000
+      }
+    });
+    if (credential && credential.rawId) {
+      S.biometricCredentialId = btoa(String.fromCharCode(...new Uint8Array(credential.rawId)));
+      sv();
+      toast("Face ID enabled ✓", "ok");
+      updateBiometricUI();
+      return true;
+    }
+  } catch(e) {
+    console.error("Biometric registration failed", e);
+    toast("Face ID setup cancelled or failed", "warn");
+    S.biometricEnabled = false;
+    sv();
+  }
+  return false;
+}
+
+async function authenticateBiometric() {
+  if (!S.biometricCredentialId) return false;
+  try {
+    const allowCredential = {
+      id: Uint8Array.from(atob(S.biometricCredentialId), c=>c.charCodeAt(0)),
+      type: "public-key"
+    };
+    const assertion = await navigator.credentials.get({
+      publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        allowCredentials: [allowCredential],
+        userVerification: "required",
+        timeout: 60000
+      }
+    });
+    if (assertion) {
+      hap('success');
+      hideLockScreen();
+      return true;
+    }
+  } catch(e) {
+    console.log("Biometric authentication failed or cancelled", e);
+  }
+  return false;
+}
+
+async function toggleBiometric() {
+  const isOn = document.getElementById('biometric-toggle').classList.contains('on');
+  if (isOn) {
+    // Disable
+    S.biometricEnabled = false;
+    S.biometricCredentialId = null;
+    sv();
+    toast("Face ID disabled", "warn");
+    updateBiometricUI();
+  } else {
+    // Enable: check availability first
+    const available = await isBiometricAvailable();
+    if (!available) {
+      toast("Face ID not supported on this device", "warn");
+      return;
+    }
+    S.biometricEnabled = true;
+    sv();
+    const success = await registerBiometric();
+    if (!success) {
+      S.biometricEnabled = false;
+      sv();
+    }
+    updateBiometricUI();
+  }
+}
+
+function updateBiometricUI() {
+  const row = document.getElementById('biometric-row');
+  const toggle = document.getElementById('biometric-toggle');
+  const status = document.getElementById('biometric-status');
+  if (!row) return;
+  if (S.biometricEnabled && S.biometricCredentialId) {
+    toggle.classList.add('on');
+    status.textContent = 'Unlock with Face ID / Touch ID';
+  } else {
+    toggle.classList.remove('on');
+    status.textContent = 'Not enabled';
+  }
+}
+
+// Show/hide Face ID row based on device capability
+async function setupBiometricUI() {
+  const available = await isBiometricAvailable();
+  const row = document.getElementById('biometric-row');
+  if (row) row.style.display = available ? 'flex' : 'none';
+  if (available) updateBiometricUI();
+  const toggle = document.getElementById('biometric-toggle');
+  if (toggle) toggle.onclick = toggleBiometric;
+}
+
 // ── NAVIGATION ────────────────────────────────────────────────────────────
-// ── TAB ORDER for swipe ──────────────────────────────────────────────────
 const TAB_ORDER=['dash','log','goals','report','settings'];
 
 function goto(id,btn,skipHap){
@@ -1200,7 +1329,6 @@ function goto(id,btn,skipHap){
   if(id==='goals'){renderGoals();renderRecurringList();}
   if(id==='report'){reportOffset=0;renderReport();}
   if(id==='settings')loadForm();
-  // FAB is inside log page — always visible there
   const fab=document.getElementById('scan-fab');
   if(fab)fab.className='scan-fab visible';
 }
@@ -1215,14 +1343,12 @@ function movePill(activeBtn){
   pill.style.width=(btnRect.width-8)+'px';
 }
 
-// ── SWIPE BETWEEN TABS (tab bar only) ────────────────────────────────────
+// Swipe between tabs (unchanged)
 (function(){
   const tabBar=document.getElementById('tabs-bar');
   if(!tabBar)return;
   let sx=0,sy=0;
-  tabBar.addEventListener('touchstart',e=>{
-    sx=e.touches[0].clientX;sy=e.touches[0].clientY;
-  },{passive:true});
+  tabBar.addEventListener('touchstart',e=>{ sx=e.touches[0].clientX; sy=e.touches[0].clientY; },{passive:true});
   tabBar.addEventListener('touchend',e=>{
     const dx=e.changedTouches[0].clientX-sx;
     const dy=e.changedTouches[0].clientY-sy;
@@ -1246,7 +1372,6 @@ const mk=(offset=0)=>{const d=new Date();d.setMonth(d.getMonth()+offset);return 
 const myExp=(offset=0)=>(S.expenses||[]).filter(e=>e.m===mk(offset));
 const fmt=n=>{
   const v=parseFloat(n)||0;
-  // Show decimals only if not a whole number
   return '€'+(Number.isInteger(v)?v.toLocaleString():v.toFixed(2));
 };
 const mo=(offset=0)=>{const d=new Date();d.setMonth(d.getMonth()+offset);return d.toLocaleDateString('en-US',{month:'long',year:'numeric'});}
@@ -1307,7 +1432,6 @@ function renderDash(){
   document.getElementById('h-spt').textContent=fmt(spent);
   document.getElementById('h-svd').textContent=fmt(s);
 
-  // Rings + overspend detection
   const nb=sal*(S.np/100)||1,wb=sal*(S.wp/100)||1,sb=sal*(S.sp/100)||1;
   setRing('n',n,nb);setRing('w',w,wb);setRing('s',s,sb);
   document.getElementById('rn-v').textContent=fmt(n);
@@ -1318,7 +1442,6 @@ function renderDash(){
   document.getElementById('rt-wants').classList.toggle('over-budget',w>wb);
   document.getElementById('rt-savings').classList.toggle('over-budget',s<sb*0.3&&sal>0);
 
-  // Overspend alert
   const alerts=[];
   if(n>nb)alerts.push(`Needs over by €${Math.round(n-nb)}`);
   if(w>wb)alerts.push(`Wants over by €${Math.round(w-wb)}`);
@@ -1327,11 +1450,9 @@ function renderDash(){
     ab.classList.add('show');
     const alertMsg='⚠️ '+alerts.join(' · ')+' — consider cutting back.';
     document.getElementById('alert-text').textContent=alertMsg;
-    // Send push only once per session
     if(!window._overspendPushSent){ window._overspendPushSent=true; sendOverspendPush(alerts.join(' · ')); }
   } else { ab.classList.remove('show'); window._overspendPushSent=false; }
 
-  // Daily limit
   const now=new Date(),pd=S.payday||25;
   let next=new Date(now.getFullYear(),now.getMonth(),pd);
   if(next<=now)next=new Date(now.getFullYear(),now.getMonth()+1,pd);
@@ -1344,18 +1465,15 @@ function renderDash(){
   document.getElementById('limit-sub').textContent=`€${Math.round(dailyBudget)}/day · spent €${Math.round(todaySpent)} today`;
   ls.classList.toggle('over',dailyLeft<0);
 
-  // Payday countdown
   document.getElementById('pay-days').innerHTML=daysLeft+'<span>days</span>';
   const dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
   document.getElementById('pay-fill').style.width=Math.max(4,Math.min(96,(1-daysLeft/dim)*100))+'%';
 
-  // Daily rec
   const rec=getDailyRec();
   document.getElementById('rec-icon').textContent=rec.icon;
   document.getElementById('rec-icon').style.background=rec.bg;
   document.getElementById('rec-text').textContent=rec.text;
 
-  // Expense list with search + filter
   const el=document.getElementById('recent-list');
   const q=(document.getElementById('search-input').value||'').toLowerCase();
   let filtered=[...exps].reverse();
@@ -1376,8 +1494,6 @@ function renderDash(){
         <div class="exp-amt ${e.c}">€${Math.round(e.a)}</div>
       </div>
     </div>`).join('');
-
-  // Swipe to delete
   filtered.forEach(e=>initSwipe(e.id));
 }
 
@@ -1391,7 +1507,7 @@ function setRing(id,spent,budget){
   else if(el)el.style.stroke='var(--lime-text)';
 }
 
-// ── SWIPE TO DELETE ───────────────────────────────────────────────────────
+// Swipe to delete (unchanged)
 function initSwipe(id){
   const row=document.getElementById('er-'+id);
   if(!row)return;
@@ -1528,9 +1644,6 @@ function saveGoal(){
 }
 function delGoal(i){hap('error');S.goals.splice(i,1);sv();renderGoals();}
 
-
-
-
 // ── ONBOARDING ────────────────────────────────────────────────────────────
 let obIdx=0;
 const OB_TOTAL=3;
@@ -1564,7 +1677,6 @@ function obFinish(){
   document.getElementById('onboard').classList.add('hidden');
   renderDash();
   hap('success');
-  // After onboarding completes, set up PIN
   const hasPin = !!localStorage.getItem('mk-pin-hash');
   if(!hasPin){
     setTimeout(() => showLockScreen(), 400);
@@ -1612,11 +1724,8 @@ function calcScore(n,w,s,sal){
   if(!sal) return {grade:'—',label:'No salary set',reason:'Add your salary in Settings.',color:'var(--muted)',pct:0};
   const nb=sal*(S.np/100), wb=sal*(S.wp/100), sb=sal*(S.sp/100);
   let pts=0, max=0;
-  // Needs: under budget = good (40 pts)
   max+=40; if(n<=nb) pts+=40; else pts+=Math.max(0,40-Math.round((n-nb)/nb*40));
-  // Wants: under budget = good (30 pts)
   max+=30; if(w<=wb) pts+=30; else pts+=Math.max(0,30-Math.round((w-wb)/wb*30));
-  // Savings: hit target = good (30 pts)
   max+=30; const sRatio=sb>0?s/sb:0; pts+=Math.min(30,Math.round(sRatio*30));
   const pct=Math.round(pts/max*100);
   let grade,label,reason,color;
@@ -1679,19 +1788,14 @@ function saveEdit(){
   toast('Updated!','ok');
 }
 
-
-
-
 // ── NET SAVINGS TRACKER ───────────────────────────────────────────────────
 function renderNet(){
   const base=S.netBase||0;
-  // Add all savings logged across all months
   const totalSaved=(S.expenses||[]).filter(e=>e.c==='savings').reduce((a,e)=>a+e.a,0);
   const net=base+totalSaved;
   const el=document.getElementById('net-amount');
   if(el)el.textContent=fmt(net);
 
-  // Build month history chips
   const hist=document.getElementById('net-history');
   if(!hist)return;
   const months={};
@@ -1705,967 +1809,3 @@ function renderNet(){
     const [yr,mo]=mk.split('-');
     const d=new Date(parseInt(yr),parseInt(mo));
     const lbl=d.toLocaleDateString('en-US',{month:'short',year:'2-digit'});
-    return`<div class="net-month-chip"><div class="net-month-chip-lbl">${lbl}</div><div class="net-month-chip-val">+€${Math.round(val)}</div></div>`;
-  }).join('');
-}
-
-function openNetModal(){
-  document.getElementById('net-input').value=S.netBase||'';
-  document.getElementById('net-modal').classList.add('show');
-}
-function closeNetModal(e){
-  if(!e||e.target===document.getElementById('net-modal'))
-    document.getElementById('net-modal').classList.remove('show');
-}
-function saveNet(){
-  S.netBase=parseFloat(document.getElementById('net-input').value)||0;
-  sv();document.getElementById('net-modal').classList.remove('show');
-  renderNet();hap('success');toast('Balance updated','ok');
-}
-
-// ── TOP SPENDING CATEGORIES ───────────────────────────────────────────────
-function renderTopCats(exps){
-  const el=document.getElementById('top-cats-list');
-  if(!el)return;
-  if(!exps.length){el.innerHTML='<div style="font-size:13px;color:var(--dim);text-align:center;padding:8px 0">No expenses yet</div>';return;}
-  const map={};
-  exps.forEach(e=>{
-    const k=(e.n||'Expense').trim();
-    if(!map[k])map[k]={name:k,total:0,cat:e.c,count:0};
-    map[k].total+=e.a;map[k].count++;
-  });
-  const sorted=Object.values(map).sort((a,b)=>b.total-a.total).slice(0,5);
-  const max=sorted[0]?.total||1;
-  const catColor=c=>c==='needs'?'var(--blue)':c==='wants'?'var(--amber)':'var(--lime-text)';
-  el.innerHTML=sorted.map((item,i)=>`
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:${i<sorted.length-1?'10':'0'}px">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);width:14px;flex-shrink:0">${i+1}</div>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;justify-content:space-between;margin-bottom:3px">
-          <div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%">${item.name}</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:${catColor(item.cat)}">€${Math.round(item.total)}</div>
-        </div>
-        <div style="height:3px;background:var(--border2);border-radius:2px;overflow:hidden">
-          <div style="height:100%;width:${item.total/max*100}%;background:${catColor(item.cat)};border-radius:2px;transition:width .7s cubic-bezier(.4,0,.2,1)"></div>
-        </div>
-      </div>
-    </div>`).join('');
-}
-
-// ── DONUT CHART ───────────────────────────────────────────────────────────
-function renderDonut(n,w,s){
-  const svg=document.getElementById('donut-svg');
-  const legend=document.getElementById('donut-legend');
-  if(!svg||!legend)return;
-  const total=n+w+s||1;
-  const R=38,cx=50,cy=50,stroke=14;
-  const circ=2*Math.PI*R;
-  const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  const cats=[
-    {label:'Needs',val:n,color:isDark?'#4fb3ff':'#1a6fbf'},
-    {label:'Wants',val:w,color:isDark?'#ffb347':'#b36800'},
-    {label:'Savings',val:s,color:isDark?'#d4f53c':'#3d6000'},
-  ];
-  let offset=0;
-  svg.innerHTML='<circle cx="50" cy="50" r="38" fill="none" stroke="var(--border2)" stroke-width="14"/>';
-  cats.forEach(c=>{
-    if(!c.val)return;
-    const pct=c.val/total;
-    const dash=circ*pct;
-    const el=document.createElementNS('http://www.w3.org/2000/svg','circle');
-    el.setAttribute('cx',cx);el.setAttribute('cy',cy);el.setAttribute('r',R);
-    el.setAttribute('fill','none');el.setAttribute('stroke',c.color);
-    el.setAttribute('stroke-width',stroke);el.setAttribute('stroke-linecap','butt');
-    el.setAttribute('stroke-dasharray',dash+' '+(circ-dash));
-    el.setAttribute('stroke-dashoffset',-offset);
-    el.style.transition='stroke-dasharray .7s cubic-bezier(.4,0,.2,1)';
-    svg.appendChild(el);
-    offset+=dash;
-  });
-  legend.innerHTML=cats.map(c=>`
-    <div style="display:flex;align-items:center;gap:8px">
-      <div style="width:10px;height:10px;border-radius:3px;background:${c.color};flex-shrink:0"></div>
-      <div style="flex:1;font-size:12px;color:var(--muted)">${c.label}</div>
-      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--text)">${Math.round(c.val/total*100)}%</div>
-    </div>`).join('');
-}
-
-// ── MONTH VS MONTH COMPARISON ─────────────────────────────────────────────
-function renderComparison(off){
-  const cur=myExp(off), prev=myExp(off-1);
-  const sal=S.salary||1;
-  const sum=arr=>{let n=0,w=0,s=0,t=0;arr.forEach(e=>{if(e.c==='needs')n+=e.a;else if(e.c==='wants')w+=e.a;else s+=e.a;t+=e.a;});return{n,w,s,t};};
-  const c=sum(cur), p=sum(prev);
-  document.getElementById('cmp-lbl-cur').textContent=mo(off);
-  document.getElementById('cmp-lbl-prev').textContent=mo(off-1);
-  const cats=[
-    {lbl:'Needs',ck:c.n,pk:p.n,color:'var(--blue)'},
-    {lbl:'Wants',ck:c.w,pk:p.w,color:'var(--amber)'},
-    {lbl:'Savings',ck:c.s,pk:p.s,color:'var(--lime-text)'},
-    {lbl:'Total',ck:c.t,pk:p.t,color:'var(--text)'},
-  ];
-  const maxVal=Math.max(c.n,c.w,c.s,c.t,p.n,p.w,p.s,p.t,1);
-  const delta=(cur,prev,isSavings)=>{
-    if(!prev)return'<span class="cmp-delta same">—</span>';
-    const d=((cur-prev)/prev*100);
-    const better=isSavings?d>0:d<0;
-    const sign=d>0?'+':'';
-    return`<span class="cmp-delta ${better?'better':'worse'}">${sign}${Math.round(d)}%</span>`;
-  };
-  document.getElementById('cmp-rows').innerHTML=cats.map(cat=>`
-    <div class="cmp-row">
-      <div class="cmp-lbl">${cat.lbl}</div>
-      <div class="cmp-bars">
-        <div class="cmp-bar-row">
-          <div class="cmp-bar-track"><div class="cmp-bar-fill" style="width:${cat.ck/maxVal*100}%;background:${cat.color}"></div></div>
-          <div class="cmp-bar-val" style="color:${cat.color}">€${Math.round(cat.ck)}</div>
-        </div>
-        <div class="cmp-bar-row">
-          <div class="cmp-bar-track"><div class="cmp-bar-fill" style="width:${cat.pk/maxVal*100}%;background:var(--border2)"></div></div>
-          <div class="cmp-bar-val" style="color:var(--muted)">€${Math.round(cat.pk)}</div>
-        </div>
-      </div>
-      ${delta(cat.ck,cat.pk,cat.lbl==='Savings')}
-    </div>`).join('');
-}
-// ── REPORT ───────────────────────────────────────────────────────────────
-function shiftMonth(dir){
-  hap('light');
-  reportOffset=Math.min(0,reportOffset+dir);
-  renderReport();
-}
-
-function renderReport(){
-  const off=reportOffset;
-  const exps=myExp(off),sal=S.salary||0;
-  let n=0,w=0,s=0;
-  exps.forEach(e=>{if(e.c==='needs')n+=e.a;else if(e.c==='wants')w+=e.a;else s+=e.a;});
-  const total=n+w+s;
-  document.getElementById('rpt-title').textContent=mo(off);
-  const provLbl=document.getElementById('ai-provider-lbl');
-  if(provLbl)provLbl.textContent=(S.key&&S.key.startsWith('gsk_')?'Groq':'Gemini')+' analysis';
-  document.getElementById('rs-total').textContent=fmt(total);
-  document.getElementById('rs-rem2').textContent=fmt(Math.max(0,sal-total));
-  document.getElementById('rs-cnt').textContent=exps.length;
-  const big=exps.length?exps.reduce((a,b)=>a.a>b.a?a:b):null;
-  document.getElementById('rs-big').textContent=big?fmt(big.a):'—';
-  const mx=Math.max(n,w,s,1);
-  document.getElementById('bf-n').style.width=(n/mx*100)+'%';
-  document.getElementById('bf-w').style.width=(w/mx*100)+'%';
-  document.getElementById('bf-s').style.width=(s/mx*100)+'%';
-  document.getElementById('bv-n').textContent=fmt(n);
-  document.getElementById('bv-w').textContent=fmt(w);
-  document.getElementById('bv-s').textContent=fmt(s);
-  renderDayChart(exps);
-  renderDonut(n,w,s);
-  renderTopCats(exps);
-  renderComparison(off);
-}
-
-function renderDayChart(exps){
-  const el=document.getElementById('day-chart');
-  const days=14;
-  const now=new Date();
-  const buckets=[];
-  for(let i=days-1;i>=0;i--){
-    const d=new Date(now);d.setDate(d.getDate()-i);
-    const key=d.toDateString();
-    const total=exps.filter(e=>new Date(e.d).toDateString()===key).reduce((a,e)=>a+e.a,0);
-    buckets.push({label:d.toLocaleDateString('en-GB',{day:'numeric'}),total});
-  }
-  const max=Math.max(...buckets.map(b=>b.total),1);
-  const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  el.innerHTML=buckets.map((b,i)=>{
-    const h=Math.round((b.total/max)*60);
-    const isToday=i===days-1;
-    const color=isToday?(isDark?'#d4f53c':'#3d6000'):(isDark?'rgba(212,245,60,0.3)':'rgba(90,138,0,0.2)');
-    return`<div class="chart-bar-wrap">
-      <div class="chart-bar" style="height:${Math.max(2,h)}px;background:${color}"></div>
-      <div class="chart-bar-lbl" style="bottom:0">${b.label}</div>
-    </div>`;
-  }).join('')+'<div class="chart-axis"></div>';
-}
-
-async function runAI(){
-  if(!S.key){toast('Add Gemini key in Settings');return;}
-  const exps=myExp(reportOffset);if(!exps.length){toast('No expenses yet');return;}
-  const btn=document.getElementById('ai-btn'),lbl=document.getElementById('ai-lbl'),spin=document.getElementById('ai-spin'),body=document.getElementById('ai-body');
-  btn.disabled=true;lbl.textContent='Analysing…';spin.style.display='block';body.textContent='';
-  let n=0,w=0,s=0;
-  exps.forEach(e=>{if(e.c==='needs')n+=e.a;else if(e.c==='wants')w+=e.a;else s+=e.a;});
-  const total=n+w+s,sal=S.salary||0;
-  const prompt=`Sharp personal finance advisor. My ${mo(reportOffset)} spending:
-Salary €${sal} | Needs €${n} (target €${(sal*S.np/100).toFixed(0)}) | Wants €${w} (target €${(sal*S.wp/100).toFixed(0)}) | Savings €${s} (target €${(sal*S.sp/100).toFixed(0)}) | Total €${total} | Left €${Math.max(0,sal-total).toFixed(0)}
-Top: ${[...exps].sort((a,b)=>b.a-a.a).slice(0,3).map(e=>e.n+' €'+Math.round(e.a)).join(', ')}
-3 sentences max. Honest, direct. What's good, what's bad, one action for next month.`;
-  try{
-    let text='';
-    if(S.key.startsWith('gsk_')){
-      // Groq
-      const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+S.key},
-        body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:[{role:'user',content:prompt}],max_tokens:180,temperature:0.7})
-      });
-      const d=await r.json();
-      text=d.choices?.[0]?.message?.content||'No response.';
-    } else {
-      // Gemini fallback
-      const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${S.key}`,{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:180,temperature:0.7}})
-      });
-      const d=await r.json();
-      text=d.candidates?.[0]?.content?.parts?.[0]?.text||'No response.';
-    }
-    body.textContent=text;
-    lbl.textContent='Refresh analysis';spin.style.display='none';btn.disabled=false;
-  }catch(e){
-    body.textContent='Connection failed. Check your API key.';
-    lbl.textContent='Try again';spin.style.display='none';btn.disabled=false;
-  }
-}
-
-
-// ── CSV EXPORT ────────────────────────────────────────────────────────────
-function exportCSV(){
-  const exps=S.expenses||[];
-  if(!exps.length){toast('No expenses to export');return;}
-  const rows=[['Date','Description','Category','Amount (EUR)','Month']];
-  [...exps].sort((a,b)=>new Date(a.d)-new Date(b.d)).forEach(e=>{
-    const d=new Date(e.d);
-    rows.push([
-      d.toLocaleDateString('en-GB'),
-      '"'+(e.n||'').replace(/"/g,'""')+'"',
-      e.c||'',
-      e.a.toFixed(2),
-      d.toLocaleDateString('en-US',{month:'long',year:'numeric'})
-    ]);
-  });
-  const csv=rows.map(r=>r.join(',')).join('\n');
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;
-  a.download='monarka-'+new Date().toISOString().slice(0,10)+'.csv';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  hap('success');
-  toast('Exported '+exps.length+' expenses','ok');
-}
-
-
-
-
-// ── AUTHENTICATION — PIN only, no WebAuthn ───────────────────────────────
-// WebAuthn on github.io always shows passkey picker — not suitable.
-// PIN stored as SHA-256 hash. Fast, secure, no browser prompts.
-
-const PIN_KEY = 'mk-pin-hash';
-let authFailCount = 0;
-let pinEntry = '';
-let pinMode = 'verify'; // 'verify' | 'setup' | 'confirm'
-let pinFirst = '';
-let lockTimer = null;
-
-function showLockScreen(){
-  const lock = document.getElementById('lock-screen');
-  if(!lock) return;
-  lock.classList.remove('hidden');
-  lock.style.opacity = '1';
-  const hasPin = !!localStorage.getItem(PIN_KEY);
-  if(hasPin){
-    showPinPad('verify');
-  } else {
-    showPinPad('setup');
-  }
-}
-
-function hideLockScreen(){
-  const lock = document.getElementById('lock-screen');
-  if(!lock) return;
-  lock.style.opacity = '0';
-  setTimeout(() => lock.classList.add('hidden'), 280);
-  authFailCount = 0;
-  pinEntry = '';
-  if(S.workerUrl) cloudLoad();
-}
-
-// Dummy — called from lock btn, just refocus PIN
-function authenticate(){
-  document.querySelector('.pin-key')?.focus();
-}
-
-// ── PIN PAD ───────────────────────────────────────────────────────────────
-function showPinPad(mode){
-  pinMode = mode || 'verify';
-  pinEntry = '';
-  pinFirst = '';
-  updatePinDisplay();
-  document.getElementById('lock-pin-wrap').style.display = 'block';
-  document.getElementById('lock-btn').style.display = 'none';
-  const lbl = document.getElementById('lock-btn-lbl');
-  if(lbl) lbl.style.display = 'none';
-  const errEl = document.getElementById('lock-error');
-  if(errEl){
-    if(pinMode === 'setup') errEl.textContent = 'Create a 6-digit PIN';
-    else if(pinMode === 'confirm') errEl.textContent = 'Confirm your PIN';
-    else errEl.textContent = 'Enter your PIN';
-  }
-}
-
-function hidePinPad(){
-  document.getElementById('lock-pin-wrap').style.display = 'none';
-  document.getElementById('lock-btn').style.display = 'flex';
-  const lbl = document.getElementById('lock-btn-lbl');
-  if(lbl) lbl.style.display = 'block';
-  pinEntry = '';
-  updatePinDisplay();
-}
-
-// Called from "Use Face ID instead" — just refocus PIN on github.io
-function tryFaceID(){ /* no-op on shared domain */ }
-
-function pinPress(d){
-  if(pinEntry.length >= 6) return;
-  hap('light');
-  pinEntry += d;
-  updatePinDisplay();
-  if(pinEntry.length === 6) setTimeout(processPin, 120);
-}
-
-function pinDel(){
-  hap('light');
-  pinEntry = pinEntry.slice(0, -1);
-  updatePinDisplay();
-}
-
-function pinClear(){
-  pinEntry = '';
-  updatePinDisplay();
-}
-
-function updatePinDisplay(){
-  document.querySelectorAll('.pin-dot').forEach((d, i) => {
-    d.classList.toggle('filled', i < pinEntry.length);
-  });
-}
-
-async function pinHash(pin){
-  const buf = await crypto.subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode('monarka-salt-' + pin)
-  );
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-}
-
-async function processPin(){
-  const errEl = document.getElementById('lock-error');
-
-  if(pinMode === 'setup'){
-    pinFirst = pinEntry;
-    pinEntry = '';
-    pinMode = 'confirm';
-    updatePinDisplay();
-    if(errEl) errEl.textContent = 'Confirm your PIN';
-    return;
-  }
-
-  if(pinMode === 'confirm'){
-    if(pinEntry !== pinFirst){
-      hap('error');
-      pinEntry = ''; pinFirst = '';
-      pinMode = 'setup';
-      updatePinDisplay();
-      if(errEl) errEl.textContent = "PINs don't match — try again";
-      return;
-    }
-    const hash = await pinHash(pinEntry);
-    localStorage.setItem(PIN_KEY, hash);
-    hap('success');
-    hideLockScreen();
-    toast('PIN set! 🔐', 'ok');
-    return;
-  }
-
-  if(pinMode === 'verify'){
-    const stored = localStorage.getItem(PIN_KEY);
-    const hash = await pinHash(pinEntry);
-    if(hash === stored){
-      hap('success');
-      hideLockScreen();
-    } else {
-      hap('error');
-      authFailCount++;
-      pinEntry = '';
-      updatePinDisplay();
-      if(errEl){
-        if(authFailCount >= 5){
-          errEl.textContent = 'Too many attempts — wait 30s';
-          disablePinPad(30);
-        } else {
-          errEl.textContent = `Wrong PIN (${authFailCount}/5)`;
-        }
-      }
-    }
-  }
-}
-
-function disablePinPad(seconds){
-  const keys = document.querySelectorAll('.pin-key');
-  keys.forEach(k => k.disabled = true);
-  let remaining = seconds;
-  const errEl = document.getElementById('lock-error');
-  const t = setInterval(() => {
-    remaining--;
-    if(errEl) errEl.textContent = `Wait ${remaining}s…`;
-    if(remaining <= 0){
-      clearInterval(t);
-      keys.forEach(k => k.disabled = false);
-      authFailCount = 0;
-      if(errEl) errEl.textContent = 'Enter your PIN';
-    }
-  }, 1000);
-}
-
-// ── CLOUD SYNC ────────────────────────────────────────────────────────────
-let syncTimer = null;
-let lastSyncTs = null;
-
-function scheduleSave(){
-  if(syncTimer) clearTimeout(syncTimer);
-  syncTimer = setTimeout(() => cloudSave(), 3000);
-}
-
-async function cloudSave(){
-  if(!S.workerUrl) return;
-  try {
-    updateSyncStatus('syncing', 'Saving…');
-    const res = await fetch(S.workerUrl + '/sync/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Device-Id': deviceId },
-      body: JSON.stringify({ data: JSON.stringify(S) })
-    });
-    const d = await res.json();
-    if(d.ok){
-      lastSyncTs = d.ts;
-      updateSyncStatus('synced', 'Saved ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
-    } else {
-      updateSyncStatus('unsynced', 'Save failed');
-    }
-  } catch(e) {
-    updateSyncStatus('unsynced', 'Offline — will retry');
-  }
-}
-
-async function cloudLoad(){
-  if(!S.workerUrl) return;
-  try {
-    updateSyncStatus('syncing', 'Loading from cloud…');
-    const res = await fetch(S.workerUrl + '/sync/load', {
-      headers: { 'X-Device-Id': deviceId }
-    });
-    const d = await res.json();
-    if(d.ok && d.data){
-      const remote = JSON.parse(d.data);
-      const localExpCount = (S.expenses||[]).length;
-      const remoteExpCount = (remote.expenses||[]).length;
-      if(remoteExpCount >= localExpCount){
-        const localWorkerUrl = S.workerUrl;
-        const localKey = S.key;
-        const localTheme = S.theme;
-        S = { ...remote, workerUrl: localWorkerUrl, key: localKey, theme: localTheme };
-        sv();
-        renderDash();
-        updateSyncStatus('synced', 'Restored from ' + new Date(d.ts).toLocaleDateString('en-GB'));
-        toast('Data restored from cloud!', 'ok');
-      } else {
-        updateSyncStatus('synced', 'Local data is newer');
-        cloudSave();
-      }
-    } else {
-      updateSyncStatus('unsynced', 'No cloud backup found');
-      if(S.expenses?.length) cloudSave();
-    }
-  } catch(e) {
-    updateSyncStatus('unsynced', 'Could not connect');
-  }
-}
-
-async function manualSync(){
-  if(!S.workerUrl){ toast('Add Worker URL in Settings first'); return; }
-  await cloudSave();
-  toast('Synced!', 'ok');
-}
-
-function updateSyncStatus(state, msg){
-  const dot = document.getElementById('sync-dot');
-  const sub = document.getElementById('sync-sub');
-  if(dot) dot.className = 'sync-dot ' + state;
-  if(sub) sub.textContent = msg;
-}
-
-// ── PUSH NOTIFICATIONS ────────────────────────────────────────────────────
-let deviceId = localStorage.getItem('ac-device-id');
-if(!deviceId){ deviceId = 'dev-'+Date.now()+'-'+Math.random().toString(36).slice(2); localStorage.setItem('ac-device-id', deviceId); }
-
-function updateNotifBtn(){
-  const btn = document.getElementById('notif-btn');
-  if(!btn) return;
-  const perm = Notification.permission;
-  if(perm === 'granted' && S.pushSubscribed){
-    btn.textContent = 'Enabled ✓';
-    btn.style.opacity = '0.6';
-    btn.style.cursor = 'default';
-  } else if(perm === 'denied'){
-    btn.textContent = 'Blocked';
-    btn.style.opacity = '0.4';
-    btn.style.cursor = 'default';
-  } else {
-    btn.textContent = 'Enable';
-    btn.style.opacity = '1';
-    btn.style.cursor = 'pointer';
-  }
-}
-
-async function toggleNotifications(){
-  if(!S.workerUrl){ toast('Add Worker URL in Settings first'); return; }
-  if(Notification.permission === 'denied'){ toast('Notifications blocked — enable in iPhone Settings'); return; }
-  if(S.pushSubscribed){ toast('Notifications already enabled'); return; }
-
-  try {
-    const perm = await Notification.requestPermission();
-    if(perm !== 'granted'){ toast('Permission denied'); return; }
-
-    // Get VAPID key from worker
-    const keyRes = await fetch(S.workerUrl + '/vapid-public-key');
-    const { key: vapidKey } = await keyRes.json();
-
-    const reg = await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidKey)
-    });
-
-    // Send subscription to worker
-    await fetch(S.workerUrl + '/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subscription: sub.toJSON(), deviceId })
-    });
-
-    S.pushSubscribed = true;
-    sv();
-    updateNotifBtn();
-    hap('success');
-    toast('Notifications enabled!', 'ok');
-  } catch(e) {
-    toast('Failed: ' + e.message);
-  }
-}
-
-function urlBase64ToUint8Array(base64String){
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const raw = atob(base64);
-  return Uint8Array.from(raw, c => c.charCodeAt(0));
-}
-
-// Send overspend push notification
-async function sendOverspendPush(msg){
-  if(!S.workerUrl || !S.pushSubscribed) return;
-  try {
-    await fetch(S.workerUrl + '/notify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deviceId, title: '⚠️ MonArka', body: msg, icon: '/monarka/icon-192.png' })
-    });
-  } catch(e) {}
-}
-
-// ── RECEIPT SCANNER ───────────────────────────────────────────────────────
-let scanResult = null;
-
-function openScannerModal(){
-  hap('light');
-  document.getElementById('scanner-modal').classList.add('open');
-  // Show FAB only on log tab
-}
-
-function closeScannerModal(){
-  hap('light');
-  document.getElementById('scanner-modal').classList.remove('open');
-}
-
-function triggerScanFile(){
-  document.getElementById('scan-file').click();
-}
-
-function clearScan(){
-  scanResult = null;
-  document.getElementById('scanner-preview-wrap').style.display = 'none';
-  document.getElementById('scanner-result').style.display = 'none';
-  document.getElementById('scanner-error').style.display = 'none';
-  document.getElementById('scanner-drop').style.display = 'block';
-}
-
-function handleScanFile(e){
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = async ev => {
-    // Show preview
-    const wrap = document.getElementById('scanner-preview-wrap');
-    document.getElementById('scanner-preview-img').src = ev.target.result;
-    wrap.style.display = 'block';
-    document.getElementById('scanner-drop').style.display = 'none';
-    document.getElementById('scanner-result').style.display = 'none';
-    document.getElementById('scanner-error').style.display = 'none';
-    document.getElementById('scanner-analysing').style.display = 'block';
-    await analyseReceipt(ev.target.result);
-  };
-  reader.readAsDataURL(file);
-  e.target.value = '';
-}
-
-async function analyseReceipt(dataUrl){
-  const errEl = document.getElementById('scanner-error');
-  const spinEl = document.getElementById('scanner-analysing');
-
-  function showError(msg){
-    spinEl.style.display = 'none';
-    errEl.style.display = 'block';
-    errEl.textContent = msg;
-  }
-
-  if(!S.key){ showError('Add your Groq or Gemini API key in Settings first.'); return; }
-
-  const base64 = dataUrl.split(',')[1];
-  const mimeType = dataUrl.split(';')[0].split(':')[1];
-
-  // Resize image to reduce payload size — max 1024px
-  const resized = await resizeImage(dataUrl, 1024);
-  const resizedBase64 = resized.split(',')[1];
-
-  const prompt = 'Look at this receipt image. Find the TOTAL amount paid. Reply ONLY with a JSON object like this exact format: {"amount": 16.50, "description": "Shop Name"} — use the shop name or type of store as description. No extra text, no markdown, just the raw JSON.';
-
-  try {
-    let text = '';
-
-    if(S.key.startsWith('gsk_')){
-      // Groq vision
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + S.key
-        },
-        body: JSON.stringify({
-          model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'image_url', image_url: { url: resized } },
-              { type: 'text', text: prompt }
-            ]
-          }],
-          max_tokens: 150,
-          temperature: 0
-        })
-      });
-      const d = await res.json();
-      if(d.error){ showError('Groq error: ' + d.error.message); return; }
-      text = d.choices?.[0]?.message?.content || '';
-    } else {
-      // Gemini vision
-      const res = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + S.key,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [
-              { inline_data: { mime_type: mimeType, data: resizedBase64 } },
-              { text: prompt }
-            ]}],
-            generationConfig: { maxOutputTokens: 150, temperature: 0 }
-          })
-        }
-      );
-      const d = await res.json();
-      if(d.error){ showError('Gemini error: ' + d.error.message); return; }
-      text = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    }
-
-    // Extract JSON from response — handle markdown fences
-    const jsonMatch = text.match(/\{[\s\S]*?\}/);
-    if(!jsonMatch){ showError('AI could not find an amount. Try a clearer photo of the total.'); return; }
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    if(!parsed.amount){ showError('No amount found. Make sure the total is visible in the photo.'); return; }
-
-    scanResult = parsed;
-    spinEl.style.display = 'none';
-    document.getElementById('scanner-amt').textContent = fmt(parsed.amount);
-    document.getElementById('scanner-desc').textContent = parsed.description || 'Expense';
-    document.getElementById('scanner-result').style.display = 'block';
-    hap('success');
-
-  } catch(err) {
-    showError('Error: ' + err.message);
-  }
-}
-
-// Resize image to max dimension before sending to AI
-function resizeImage(dataUrl, maxSize){
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => {
-      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-      const w = Math.round(img.width * scale);
-      const h = Math.round(img.height * scale);
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', 0.85));
-    };
-    img.src = dataUrl;
-  });
-}
-
-function useScan(){
-  if(!scanResult) return;
-  hap('success');
-  if(scanResult.amount){
-    const a = parseFloat(scanResult.amount);
-    if(a > 0){
-      amt = String(a);
-      document.getElementById('log-num').textContent = amt;
-      document.getElementById('log-num').className = 'log-num lit';
-    }
-  }
-  if(scanResult.description){
-    document.getElementById('exp-desc').value = scanResult.description;
-  }
-  document.getElementById('add-btn').disabled = !(parseFloat(amt) > 0 && cat);
-  closeScannerModal();
-  // Go to log tab
-  goto('log', document.getElementById('tab-log'), true);
-  toast('Filled in! Pick a category ↓', 'ok');
-  scanResult = null;
-}
-
-
-// ── THEME MANAGEMENT ──────────────────────────────────────────────────────
-function setTheme(mode){
-  S.theme = mode;
-  sv();
-  applyTheme(mode);
-  updateThemeBtns(mode);
-  hap('light');
-  toast('Theme updated', 'ok');
-}
-
-function applyTheme(mode){
-  const root = document.documentElement;
-  // Remove all theme classes
-  root.classList.remove('theme-dark','theme-light','theme-system');
-  root.classList.add('theme-' + mode);
-
-  // Determine if we're actually in light mode
-  const isLight = mode === 'light' ||
-    (mode === 'system' && window.matchMedia('(prefers-color-scheme:light)').matches);
-
-  // Force body background immediately
-  document.body.style.background = isLight ? '#f0f2f5' : '#000000';
-
-  // Update tab bar
-  const tabs = document.getElementById('tabs-bar');
-  if(tabs){
-    tabs.style.background = isLight
-      ? 'rgba(240,242,245,0.92)'
-      : 'rgba(0,0,0,0.85)';
-    tabs.style.borderColor = isLight
-      ? 'rgba(184,146,42,0.25)'
-      : 'rgba(201,168,76,0.2)';
-  }
-
-  // Update tab bar pill
-  const pill = document.getElementById('tabs-pill');
-  if(pill){
-    pill.style.background = isLight
-      ? 'rgba(184,146,42,0.15)'
-      : 'rgba(201,168,76,0.18)';
-    pill.style.borderColor = isLight
-      ? 'rgba(184,146,42,0.4)'
-      : 'rgba(201,168,76,0.35)';
-  }
-
-  // Update header
-  const hdr = document.querySelector('.hdr');
-  if(hdr) hdr.style.background = isLight ? '#f0f2f5' : '#000000';
-}
-
-function updateThemeBtns(mode){
-  ['dark','light','system'].forEach(m => {
-    const btn = document.getElementById('theme-' + m);
-    if(btn) btn.className = 'theme-opt' + (m === mode ? ' active' : '');
-  });
-}
-
-// ── SETTINGS ─────────────────────────────────────────────────────────────
-function loadForm(){
-  document.getElementById('s-sal').value=S.salary||'';
-  document.getElementById('s-pay').value=S.payday||25;
-  document.getElementById('s-np').value=S.np||50;
-  document.getElementById('s-wp').value=S.wp||30;
-  document.getElementById('s-sp').value=S.sp||20;
-  document.getElementById('s-key').value=S.key||'';
-  updateThemeBtns(S.theme||'dark');
-  if(lastSyncTs) updateSyncStatus('synced','Last saved '+new Date(lastSyncTs).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
-  document.getElementById('s-worker').value=S.workerUrl||'';
-  updateNotifBtn();
-}
-function saveSettings(){
-  S.salary=parseFloat(document.getElementById('s-sal').value)||0;
-  S.payday=parseInt(document.getElementById('s-pay').value)||25;
-  S.np=parseFloat(document.getElementById('s-np').value)||50;
-  S.wp=parseFloat(document.getElementById('s-wp').value)||30;
-  S.sp=parseFloat(document.getElementById('s-sp').value)||20;
-  S.key=document.getElementById('s-key').value.trim();
-  S.workerUrl=document.getElementById('s-worker').value.trim().replace(/\/$/,'');
-  sv();hap('success');toast('Saved!','ok');
-}
-function clearMonth(){
-  if(!confirm('Clear this month?'))return;
-  S.expenses=(S.expenses||[]).filter(e=>e.m!==mk());
-  sv();toast('Cleared');
-}
-function clearAll(){
-  if(!confirm('Delete ALL data?'))return;
-  S.expenses=[];S.goals=[];S.recurring=[];sv();toast('Cleared');
-}
-
-// ── TOAST ─────────────────────────────────────────────────────────────────
-function toast(msg,type=''){
-  const t=document.getElementById('toast');
-  t.textContent=msg;t.className='toast'+(type?' '+type:'');
-  t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2000);
-}
-
-// ── INIT ──────────────────────────────────────────────────────────────────
-
-if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
-
-
-
-ld();
-autoLogRecurring();
-renderDash();
-document.getElementById('hdr-date').textContent=mo();
-// Wire up onboarding buttons
-document.getElementById('ob-btn').addEventListener('click', obNext);
-updateNotifBtn();
-document.getElementById('ob-skip').addEventListener('click', obFinish);
-// Apply saved theme on load
-const savedTheme = S.theme || 'dark';
-applyTheme(savedTheme);
-updateThemeBtns(savedTheme);
-// Show onboarding on fresh install, lock screen if PIN exists
-const hasPinSetup = !!localStorage.getItem('mk-pin-hash');
-const shouldOnboard = !S.onboarded && !S.salary;
-
-if(shouldOnboard){
-  // Fresh install — show onboarding, no lock
-  document.getElementById('onboard').classList.remove('hidden');
-} else if(hasPinSetup){
-  // Returning user with PIN — show lock
-  document.getElementById('onboard').classList.add('hidden');
-  showLockScreen();
-} else {
-  // Has data but no PIN — show dashboard, prompt PIN setup
-  document.getElementById('onboard').classList.add('hidden');
-  if(S.workerUrl) cloudLoad();
-  setTimeout(() => showLockScreen(), 500); // prompt PIN setup
-}
-// Re-apply when system theme changes (for system mode)
-window.matchMedia('(prefers-color-scheme:light)').addEventListener('change', () => {
-  if((S.theme || 'dark') === 'system') applyTheme('system');
-});
-
-// Show onboarding on first launch
-
-// Init pill on first active tab
-requestAnimationFrame(()=>{
-  const active=document.querySelector('.tab.active');
-  if(active)movePill(active);
-});
-window.addEventListener('resize',()=>{
-  const active=document.querySelector('.tab.active');
-  if(active)movePill(active);
-});
-</script>
-
-
-<!-- SCANNER MODAL -->
-<div class="scanner-modal" id="scanner-modal">
-  <div class="scanner-modal-hdr">
-    <div class="scanner-modal-title">📷 Receipt Scanner</div>
-    <button class="scanner-close" onclick="closeScannerModal()">✕</button>
-  </div>
-  <div class="scanner-body">
-
-    <div class="scanner-drop" id="scanner-drop" onclick="triggerScanFile()">
-      <span class="scanner-drop-icon">📸</span>
-      <div class="scanner-drop-title">Tap to scan a receipt</div>
-      <div class="scanner-drop-sub">Take a photo or choose from your library.<br>Works with receipts, bank screenshots, invoices.</div>
-    </div>
-
-    <div class="scanner-preview-wrap" id="scanner-preview-wrap">
-      <img id="scanner-preview-img" src="" alt="Receipt preview">
-      <button class="scanner-preview-clear" onclick="clearScan()">✕</button>
-    </div>
-
-    <div class="scanner-analysing" id="scanner-analysing">
-      <div class="scanner-analysing-ring"></div>
-      Analysing your image with AI…
-    </div>
-
-    <div class="scanner-result" id="scanner-result">
-      <div class="scanner-result-hdr">
-        <div class="scanner-result-dot"></div>
-        <div class="scanner-result-lbl">Detected</div>
-      </div>
-      <div class="scanner-result-row">
-        <span class="scanner-result-key">Amount</span>
-        <span class="scanner-result-val" id="scanner-amt">—</span>
-      </div>
-      <div class="scanner-result-row">
-        <span class="scanner-result-key">Description</span>
-        <span class="scanner-result-desc" id="scanner-desc">—</span>
-      </div>
-      <button class="scanner-use-btn" onclick="useScan()">Use this in Log ↗</button>
-    </div>
-
-    <div class="scanner-error" id="scanner-error">
-      Could not read the image. Try a clearer photo with better lighting.
-    </div>
-
-    <div class="scanner-tips">
-      <div class="scanner-tips-title">Tips for best results</div>
-      <div class="scanner-tip">Use a receipt, bank app screenshot, or invoice</div>
-      <div class="scanner-tip">Make sure the total amount is clearly visible</div>
-      <div class="scanner-tip">Good lighting, flat surface, no blur</div>
-      <div class="scanner-tip">Works with any currency or language</div>
-    </div>
-
-  </div>
-</div>
-
-<input type="file" id="scan-file" accept="image/*" style="display:none" onchange="handleScanFile(event)">
-
-</body>
-</html>
