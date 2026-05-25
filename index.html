@@ -744,14 +744,14 @@ html.theme-light .tabs-pill{
 <div class="lock-screen hidden" id="lock-screen">
   <div class="lock-logo">👑</div>
   <div class="lock-app-name">Mon<span>Arka</span></div>
-  <div class="lock-sub" id="lock-sub">Your personal finance chest.</div>
-  <div class="lock-btn" id="lock-btn" onclick="authenticate()">
+  <div class="lock-sub" id="lock-sub">Enter your PIN to continue.</div>
+  <div class="lock-btn" id="lock-btn" onclick="authenticate()" style="display:none">
     <svg viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="1.5" style="width:36px;height:36px">
       <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
       <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
     </svg>
   </div>
-  <div class="lock-btn-lbl" id="lock-btn-lbl">Face ID / Touch ID</div>
+  <div class="lock-btn-lbl" id="lock-btn-lbl" style="display:none">PIN</div>
   <div class="lock-error" id="lock-error"></div>
   <div id="lock-pin-wrap" style="display:none;width:100%">
     <div style="display:flex;justify-content:center;gap:12px;margin-bottom:20px">
@@ -772,7 +772,7 @@ html.theme-light .tabs-pill{
       <button class="pin-key" onclick="pinPress('0')">0</button>
       <button class="pin-key" onclick="pinDel()">⌫</button>
     </div>
-    <div onclick="hidePinPad();tryFaceID()" style="text-align:center;font-size:12px;color:rgba(201,168,76,0.5);cursor:pointer;padding:8px;letter-spacing:0.06em;text-transform:uppercase;margin-top:4px">Use Face ID instead</div>
+    
   </div>
 </div>
 
@@ -1975,27 +1975,27 @@ function exportCSV(){
 
 
 
-// ── AUTHENTICATION ────────────────────────────────────────────────────────
-// Approach: Face ID as device-presence check (no registration, no iCloud prompt)
-// + 6-digit PIN as fallback, stored as SHA-256 hash
-// No WebAuthn credential creation = no passkey save dialog ever.
+// ── AUTHENTICATION — PIN only, no WebAuthn ───────────────────────────────
+// WebAuthn on github.io always shows passkey picker — not suitable.
+// PIN stored as SHA-256 hash. Fast, secure, no browser prompts.
 
-let authFailCount = 0;
 const PIN_KEY = 'mk-pin-hash';
-const AUTH_KEY = 'mk-auth-setup';
+let authFailCount = 0;
+let pinEntry = '';
+let pinMode = 'verify'; // 'verify' | 'setup' | 'confirm'
+let pinFirst = '';
+let lockTimer = null;
 
-// ── INIT LOCK ─────────────────────────────────────────────────────────────
 function showLockScreen(){
   const lock = document.getElementById('lock-screen');
   if(!lock) return;
   lock.classList.remove('hidden');
+  lock.style.opacity = '1';
   const hasPin = !!localStorage.getItem(PIN_KEY);
-  if(!hasPin){
-    // First time — skip biometrics, go straight to PIN setup
-    showPinSetup();
+  if(hasPin){
+    showPinPad('verify');
   } else {
-    // Try Face ID first
-    setTimeout(() => tryFaceID(), 400);
+    showPinPad('setup');
   }
 }
 
@@ -2003,114 +2003,33 @@ function hideLockScreen(){
   const lock = document.getElementById('lock-screen');
   if(!lock) return;
   lock.style.opacity = '0';
-  setTimeout(() => {
-    lock.classList.add('hidden');
-    lock.style.opacity = '';
-  }, 280);
+  setTimeout(() => lock.classList.add('hidden'), 280);
   authFailCount = 0;
+  pinEntry = '';
   if(S.workerUrl) cloudLoad();
 }
 
-// ── FACE ID — pure presence check, no credential registration ─────────────
-async function tryFaceID(){
-  const errEl = document.getElementById('lock-error');
-  const lbl = document.getElementById('lock-btn-lbl');
-  if(errEl) errEl.textContent = '';
-
-  // Check support
-  if(!window.PublicKeyCredential){
-    showPinPad(); return;
-  }
-  try {
-    const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-    if(!available){ showPinPad(); return; }
-  } catch(e){ showPinPad(); return; }
-
-  try {
-    if(lbl) lbl.textContent = 'Authenticating…';
-
-    // Key insight: get() with NO allowCredentials + userVerification:'required'
-    // = pure biometric presence check, iOS does NOT prompt to save anything
-    await navigator.credentials.get({
-      publicKey: {
-        challenge: crypto.getRandomValues(new Uint8Array(32)),
-        allowCredentials: [],        // empty = any credential on device
-        userVerification: 'required', // forces Face ID / Touch ID
-        timeout: 60000
-      }
-    });
-
-    // Face ID passed
-    hap('success');
-    if(lbl) lbl.textContent = 'Tap to authenticate';
-    hideLockScreen();
-
-  } catch(err){
-    if(lbl) lbl.textContent = 'Tap to authenticate';
-    if(err.name === 'NotAllowedError'){
-      // User cancelled or Face ID failed
-      authFailCount++;
-      if(authFailCount >= 2){
-        // Show PIN after 2 failures
-        if(errEl) errEl.textContent = '';
-        showPinPad();
-      } else {
-        if(errEl) errEl.textContent = 'Try again or use PIN below';
-        // Show PIN option after first failure too
-        setTimeout(() => showPinPad(), 800);
-      }
-    } else if(err.name === 'NotSupportedError' || err.name === 'SecurityError'){
-      // No credentials on device at all — go to PIN
-      showPinPad();
-    } else {
-      // Any other error — go to PIN
-      showPinPad();
-    }
-  }
-}
-
-// Called when user taps the lock button
+// Dummy — called from lock btn, just refocus PIN
 function authenticate(){
-  authFailCount = 0;
-  const errEl = document.getElementById('lock-error');
-  if(errEl) errEl.textContent = '';
-  const hasPin = !!localStorage.getItem(PIN_KEY);
-  if(!hasPin){
-    showPinSetup();
-  } else {
-    hidePinPad();
-    tryFaceID();
-  }
+  document.querySelector('.pin-key')?.focus();
 }
 
 // ── PIN PAD ───────────────────────────────────────────────────────────────
-let pinEntry = '';
-let pinMode = 'verify'; // 'verify' | 'setup' | 'confirm'
-let pinFirst = '';
-
-function showPinPad(){
-  pinEntry = '';
-  pinMode = 'verify';
-  updatePinDisplay();
-  document.getElementById('lock-pin-wrap').style.display = 'block';
-  document.getElementById('lock-btn').style.display = 'none';
-  const lbl = document.getElementById('lock-btn-lbl');
-  if(lbl) lbl.style.display = 'none';
-  const errEl = document.getElementById('lock-error');
-  if(errEl) errEl.textContent = 'Enter your PIN';
-}
-
-function showPinSetup(){
+function showPinPad(mode){
+  pinMode = mode || 'verify';
   pinEntry = '';
   pinFirst = '';
-  pinMode = 'setup';
   updatePinDisplay();
   document.getElementById('lock-pin-wrap').style.display = 'block';
   document.getElementById('lock-btn').style.display = 'none';
   const lbl = document.getElementById('lock-btn-lbl');
   if(lbl) lbl.style.display = 'none';
   const errEl = document.getElementById('lock-error');
-  if(errEl) errEl.textContent = 'Set a 6-digit PIN';
+  if(errEl){
+    if(pinMode === 'setup') errEl.textContent = 'Create a 6-digit PIN';
+    else if(pinMode === 'confirm') errEl.textContent = 'Confirm your PIN';
+    else errEl.textContent = 'Enter your PIN';
+  }
 }
 
 function hidePinPad(){
@@ -2118,10 +2037,12 @@ function hidePinPad(){
   document.getElementById('lock-btn').style.display = 'flex';
   const lbl = document.getElementById('lock-btn-lbl');
   if(lbl) lbl.style.display = 'block';
-  const errEl = document.getElementById('lock-error');
-  if(errEl) errEl.textContent = '';
   pinEntry = '';
+  updatePinDisplay();
 }
+
+// Called from "Use Face ID instead" — just refocus PIN on github.io
+function tryFaceID(){ /* no-op on shared domain */ }
 
 function pinPress(d){
   if(pinEntry.length >= 6) return;
@@ -2133,7 +2054,7 @@ function pinPress(d){
 
 function pinDel(){
   hap('light');
-  pinEntry = pinEntry.slice(0,-1);
+  pinEntry = pinEntry.slice(0, -1);
   updatePinDisplay();
 }
 
@@ -2143,21 +2064,23 @@ function pinClear(){
 }
 
 function updatePinDisplay(){
-  document.querySelectorAll('.pin-dot').forEach((d,i) => {
+  document.querySelectorAll('.pin-dot').forEach((d, i) => {
     d.classList.toggle('filled', i < pinEntry.length);
   });
 }
 
 async function pinHash(pin){
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('monarka-' + pin));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  const buf = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode('monarka-salt-' + pin)
+  );
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
 async function processPin(){
   const errEl = document.getElementById('lock-error');
 
   if(pinMode === 'setup'){
-    // First entry — ask to confirm
     pinFirst = pinEntry;
     pinEntry = '';
     pinMode = 'confirm';
@@ -2175,13 +2098,11 @@ async function processPin(){
       if(errEl) errEl.textContent = "PINs don't match — try again";
       return;
     }
-    // Save hash
     const hash = await pinHash(pinEntry);
     localStorage.setItem(PIN_KEY, hash);
-    localStorage.setItem(AUTH_KEY, '1');
     hap('success');
     hideLockScreen();
-    toast('PIN set! Use Face ID or PIN to unlock.', 'ok');
+    toast('PIN set! 🔐', 'ok');
     return;
   }
 
@@ -2193,13 +2114,37 @@ async function processPin(){
       hideLockScreen();
     } else {
       hap('error');
+      authFailCount++;
       pinEntry = '';
       updatePinDisplay();
-      if(errEl) errEl.textContent = 'Wrong PIN — try again';
+      if(errEl){
+        if(authFailCount >= 5){
+          errEl.textContent = 'Too many attempts — wait 30s';
+          disablePinPad(30);
+        } else {
+          errEl.textContent = `Wrong PIN (${authFailCount}/5)`;
+        }
+      }
     }
   }
 }
 
+function disablePinPad(seconds){
+  const keys = document.querySelectorAll('.pin-key');
+  keys.forEach(k => k.disabled = true);
+  let remaining = seconds;
+  const errEl = document.getElementById('lock-error');
+  const t = setInterval(() => {
+    remaining--;
+    if(errEl) errEl.textContent = `Wait ${remaining}s…`;
+    if(remaining <= 0){
+      clearInterval(t);
+      keys.forEach(k => k.disabled = false);
+      authFailCount = 0;
+      if(errEl) errEl.textContent = 'Enter your PIN';
+    }
+  }, 1000);
+}
 
 // ── CLOUD SYNC ────────────────────────────────────────────────────────────
 let syncTimer = null;
