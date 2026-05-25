@@ -1,0 +1,24 @@
+name: Deploy MonArka
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inject version timestamp into sw.js
+        run: |
+          TIMESTAMP=$(date +%s)
+          sed -i "s/self.__VERSION__ || 'monarka-' + Date.now()/'monarka-${TIMESTAMP}'/" sw.js
+          echo "Deployed version: monarka-${TIMESTAMP}"
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./
+          publish_branch: gh-pages
