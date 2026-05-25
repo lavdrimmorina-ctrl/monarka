@@ -429,7 +429,7 @@ html.theme-light .tabs-pill{
 
 /* ONBOARDING */
 .onboard{
-  position:fixed;inset:0;z-index:2000;
+  position:fixed;inset:0;z-index:4000;
   background:var(--bg);
   display:flex;flex-direction:column;
   padding-top:env(safe-area-inset-top,44px);
@@ -1568,7 +1568,6 @@ function obNext(){
 }
 
 function obFinish(){
-  // Save whatever was entered
   const sal=parseFloat(document.getElementById('ob-salary').value);
   const pay=parseInt(document.getElementById('ob-payday').value);
   const np=parseFloat(document.getElementById('ob-np').value);
@@ -1584,6 +1583,8 @@ function obFinish(){
   document.getElementById('onboard').classList.add('hidden');
   renderDash();
   hap('success');
+  // After onboarding, prompt to set up PIN
+  setTimeout(() => showLockScreen(), 400);
 }
 
 // ── CONFETTI ──────────────────────────────────────────────────────────────
@@ -2199,6 +2200,84 @@ async function processPin(){
   }
 }
 
+
+// ── CLOUD SYNC ────────────────────────────────────────────────────────────
+let syncTimer = null;
+let lastSyncTs = null;
+
+function scheduleSave(){
+  if(syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => cloudSave(), 3000);
+}
+
+async function cloudSave(){
+  if(!S.workerUrl) return;
+  try {
+    updateSyncStatus('syncing', 'Saving…');
+    const res = await fetch(S.workerUrl + '/sync/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Device-Id': deviceId },
+      body: JSON.stringify({ data: JSON.stringify(S) })
+    });
+    const d = await res.json();
+    if(d.ok){
+      lastSyncTs = d.ts;
+      updateSyncStatus('synced', 'Saved ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
+    } else {
+      updateSyncStatus('unsynced', 'Save failed');
+    }
+  } catch(e) {
+    updateSyncStatus('unsynced', 'Offline — will retry');
+  }
+}
+
+async function cloudLoad(){
+  if(!S.workerUrl) return;
+  try {
+    updateSyncStatus('syncing', 'Loading from cloud…');
+    const res = await fetch(S.workerUrl + '/sync/load', {
+      headers: { 'X-Device-Id': deviceId }
+    });
+    const d = await res.json();
+    if(d.ok && d.data){
+      const remote = JSON.parse(d.data);
+      const localExpCount = (S.expenses||[]).length;
+      const remoteExpCount = (remote.expenses||[]).length;
+      if(remoteExpCount >= localExpCount){
+        const localWorkerUrl = S.workerUrl;
+        const localKey = S.key;
+        const localTheme = S.theme;
+        S = { ...remote, workerUrl: localWorkerUrl, key: localKey, theme: localTheme };
+        sv();
+        renderDash();
+        updateSyncStatus('synced', 'Restored from ' + new Date(d.ts).toLocaleDateString('en-GB'));
+        toast('Data restored from cloud!', 'ok');
+      } else {
+        updateSyncStatus('synced', 'Local data is newer');
+        cloudSave();
+      }
+    } else {
+      updateSyncStatus('unsynced', 'No cloud backup found');
+      if(S.expenses?.length) cloudSave();
+    }
+  } catch(e) {
+    updateSyncStatus('unsynced', 'Could not connect');
+  }
+}
+
+async function manualSync(){
+  if(!S.workerUrl){ toast('Add Worker URL in Settings first'); return; }
+  await cloudSave();
+  toast('Synced!', 'ok');
+}
+
+function updateSyncStatus(state, msg){
+  const dot = document.getElementById('sync-dot');
+  const sub = document.getElementById('sync-sub');
+  if(dot) dot.className = 'sync-dot ' + state;
+  if(sub) sub.textContent = msg;
+}
+
 // ── PUSH NOTIFICATIONS ────────────────────────────────────────────────────
 let deviceId = localStorage.getItem('ac-device-id');
 if(!deviceId){ deviceId = 'dev-'+Date.now()+'-'+Math.random().toString(36).slice(2); localStorage.setItem('ac-device-id', deviceId); }
@@ -2625,16 +2704,13 @@ document.getElementById('ob-skip').addEventListener('click', obFinish);
 const savedTheme = S.theme || 'dark';
 applyTheme(savedTheme);
 updateThemeBtns(savedTheme);
-// Show lock screen if PIN has been set up
-// Fresh install → skip lock, go to onboarding
+// Show lock screen only if PIN has been set up
+// Fresh install with no PIN → skip lock entirely, show onboarding
 const hasPinSetup = !!localStorage.getItem('mk-pin-hash');
 if(hasPinSetup){
   showLockScreen();
-} else if(S.salary || S.onboarded){
-  // Has data but no PIN — show PIN setup
-  showLockScreen();
 } else {
-  // Brand new install — straight to onboarding
+  // No PIN set — go straight to onboarding or dashboard
   if(S.workerUrl) cloudLoad();
 }
 // Re-apply when system theme changes (for system mode)
