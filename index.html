@@ -2560,18 +2560,18 @@ function hideUpdateBanner(){
 }
 
 function reloadApp(){
-  if(!updateReady){ hideUpdateBanner(); return; }
   if('serviceWorker' in navigator){
     navigator.serviceWorker.ready.then(reg => {
       if(reg.waiting){
-        // Tell waiting SW to take over — triggers controllerchange above
         reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        // Safety fallback — reload after 1s even if controllerchange doesn't fire
+        setTimeout(() => window.location.reload(true), 1000);
       } else {
-        window.location.reload();
+        window.location.reload(true);
       }
-    });
+    }).catch(() => window.location.reload(true));
   } else {
-    window.location.reload();
+    window.location.reload(true);
   }
 }
 
