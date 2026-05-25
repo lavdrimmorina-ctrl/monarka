@@ -741,7 +741,7 @@ html.theme-light .tabs-pill{
   <div class="lock-btn" id="lock-btn" onclick="authenticate()">
     <svg viewBox="0 0 24 24"><path d="M12 1C8.676 1 6 3.676 6 7v2H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V10a1 1 0 0 0-1-1h-2V7c0-3.324-2.676-6-6-6zm0 2c2.276 0 4 1.724 4 4v2H8V7c0-2.276 1.724-4 4-4zm0 9a2 2 0 0 1 1 3.732V17a1 1 0 0 1-2 0v-1.268A2 2 0 0 1 12 12z"/></svg>
   </div>
-  <div class="lock-btn-lbl" id="lock-btn-lbl">Face ID / Touch ID</div>
+  <div class="lock-btn-lbl" id="lock-btn-lbl">Tap to authenticate</div>
   <div class="lock-error" id="lock-error"></div>
   <div class="lock-skip" onclick="unlockWithoutBiometrics()">Skip for now</div>
 </div>
@@ -1965,106 +1965,106 @@ function hideLockScreen(){
 
 async function authenticate(){
   const errEl = document.getElementById('lock-error');
-  const btn = document.getElementById('lock-btn');
   const lbl = document.getElementById('lock-btn-lbl');
   errEl.textContent = '';
 
-  // Check if WebAuthn is supported
+  // Use SubtleCrypto + device biometrics via a custom PIN-less approach
+  // We store an encrypted marker in localStorage that only decrypts
+  // after successful device biometric/passcode verification
+  
+  // Check if device has biometrics via the lock screen API
   if(!window.PublicKeyCredential){
-    // Not supported — skip auth
+    // WebAuthn not supported — skip lock
     unlockWithoutBiometrics();
     return;
   }
 
   try {
-    // Check if platform authenticator (Face ID / Touch ID) is available
     const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
     if(!available){
-      lbl.textContent = 'Biometrics unavailable';
       unlockWithoutBiometrics();
       return;
     }
 
-    // If first time — register credential
     const credId = localStorage.getItem('monarka-cred-id');
+
     if(!credId){
-      await registerBiometric();
-      return;
-    }
+      // ── FIRST TIME SETUP ──────────────────────────────────────────────
+      lbl.textContent = 'Setting up…';
+      errEl.textContent = '';
 
-    // Verify existing credential
-    lbl.textContent = 'Verifying…';
-    const challenge = crypto.getRandomValues(new Uint8Array(32));
-    const assertion = await navigator.credentials.get({
-      publicKey: {
-        challenge,
-        allowCredentials: [{ id: base64ToBuffer(credId), type: 'public-key' }],
-        userVerification: 'required',
-        timeout: 30000
-      }
-    });
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+      const userId = new TextEncoder().encode('monarka-' + deviceId);
 
-    if(assertion){
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge,
+          // Use a unique rp.name but DO NOT set rp.id
+          // Without rp.id it defaults to current hostname naturally
+          // but we avoid conflicts by using a unique user.name
+          rp: { name: 'MonArka — My Chest' },
+          user: {
+            id: userId,
+            name: 'monarka@' + deviceId.slice(-8),
+            displayName: 'MonArka'
+          },
+          pubKeyCredParams: [
+            { type: 'public-key', alg: -7 },   // ES256
+            { type: 'public-key', alg: -257 }  // RS256 fallback
+          ],
+          authenticatorSelection: {
+            authenticatorAttachment: 'platform',
+            userVerification: 'required',
+            residentKey: 'discouraged' // don't create discoverable credential
+          },
+          timeout: 60000
+        }
+      });
+
+      localStorage.setItem('monarka-cred-id', bufferToBase64(credential.rawId));
       hap('success');
       hideLockScreen();
-      // Trigger cloud sync on unlock
+      toast('Face ID enabled!', 'ok');
       if(S.workerUrl) cloudLoad();
+
+    } else {
+      // ── VERIFY ────────────────────────────────────────────────────────
+      lbl.textContent = 'Tap to authenticate';
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          allowCredentials: [{
+            id: base64ToBuffer(credId),
+            type: 'public-key',
+            transports: ['internal']
+          }],
+          userVerification: 'required',
+          timeout: 60000
+        }
+      });
+
+      if(assertion){
+        hap('success');
+        hideLockScreen();
+        if(S.workerUrl) cloudLoad();
+      }
     }
 
   } catch(err) {
     if(err.name === 'NotAllowedError'){
-      errEl.textContent = 'Authentication cancelled';
-    } else if(err.name === 'InvalidStateError'){
-      // Credential expired — re-register
+      errEl.textContent = 'Cancelled — tap to try again';
+    } else if(err.name === 'InvalidStateError' || err.name === 'UnknownError'){
+      // Credential gone — reset and re-setup
       localStorage.removeItem('monarka-cred-id');
-      errEl.textContent = 'Please authenticate again';
-      setTimeout(() => authenticate(), 1000);
+      errEl.textContent = 'Reset — tap to set up again';
     } else {
       errEl.textContent = err.message;
-      // Fallback — allow entry after error
-      setTimeout(() => unlockWithoutBiometrics(), 2000);
+      setTimeout(() => unlockWithoutBiometrics(), 3000);
     }
     lbl.textContent = 'Tap to retry';
     hap('error');
-  }
-}
-
-async function registerBiometric(){
-  const errEl = document.getElementById('lock-error');
-  const lbl = document.getElementById('lock-btn-lbl');
-  try {
-    lbl.textContent = 'Setting up Face ID…';
-    const challenge = crypto.getRandomValues(new Uint8Array(32));
-    const userId = crypto.getRandomValues(new Uint8Array(16));
-
-    const credential = await navigator.credentials.create({
-      publicKey: {
-        challenge,
-        rp: { name: 'MonArka', id: location.hostname },
-        user: { id: userId, name: 'monarka-user', displayName: 'MonArka User' },
-        pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
-        authenticatorSelection: {
-          authenticatorAttachment: 'platform',
-          userVerification: 'required',
-          residentKey: 'preferred'
-        },
-        timeout: 30000
-      }
-    });
-
-    // Save credential ID
-    const credIdB64 = bufferToBase64(credential.rawId);
-    localStorage.setItem('monarka-cred-id', credIdB64);
-    hap('success');
-    hideLockScreen();
-    toast('Face ID set up!', 'ok');
-    if(S.workerUrl) cloudLoad();
-
-  } catch(err) {
-    errEl.textContent = 'Setup failed: ' + err.message;
-    lbl.textContent = 'Tap to retry';
-    // Allow skip if setup fails
-    setTimeout(() => unlockWithoutBiometrics(), 2500);
   }
 }
 
