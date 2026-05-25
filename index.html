@@ -968,7 +968,10 @@ html.theme-light .tabs-pill{
       <!-- SPLITS SECTION -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 8px">
         <div class="set-sect" style="margin:0">Who Owes Me</div>
-        <button onclick="openSplitModal()" style="padding:6px 14px;background:var(--lime-bg);border:1px solid var(--lime-border);border-radius:10px;color:var(--lime-text);font-family:'Outfit',sans-serif;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.08em;text-transform:uppercase">+ New</button>
+        <div style="display:flex;gap:6px">
+          <button onclick="sendSplitReminder()" title="Send reminder push" style="padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:'Outfit',sans-serif;font-size:14px;cursor:pointer">🔔</button>
+          <button onclick="openSplitModal()" style="padding:6px 14px;background:var(--lime-bg);border:1px solid var(--lime-border);border-radius:10px;color:var(--lime-text);font-family:'Outfit',sans-serif;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.08em;text-transform:uppercase">+ New</button>
+        </div>
       </div>
       <div id="splits-summary" style="display:none;background:var(--lime-bg);border:1px solid var(--lime-border);border-radius:14px;padding:12px 16px;margin-bottom:8px">
         <div style="font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--lime-text);margin-bottom:4px">Total owed to you</div>
@@ -2404,6 +2407,55 @@ function disablePinPad(seconds){
       if(errEl) errEl.textContent = 'Enter your PIN';
     }
   }, 1000);
+}
+
+
+// ── SPLIT REMINDER PUSH ────────────────────────────────────────────────────
+async function sendSplitReminder(){
+  if(!S.workerUrl){ toast('Add Worker URL in Settings first'); return; }
+  if(!S.pushSubscribed){ toast('Enable notifications in Settings first'); return; }
+
+  const splits = S.splits || [];
+  const owedByPerson = {};
+  for(const split of splits){
+    for(const person of split.people){
+      if(!person.settled){
+        if(!owedByPerson[person.name]) owedByPerson[person.name] = 0;
+        owedByPerson[person.name] += person.amount;
+      }
+    }
+  }
+
+  const entries = Object.entries(owedByPerson);
+  if(!entries.length){ toast('No unsettled splits to remind about'); return; }
+
+  let body;
+  if(entries.length === 1){
+    const [name, amount] = entries[0];
+    body = `${name} owes you €${amount.toFixed(2)}`;
+  } else {
+    const total = entries.reduce((s,[,v])=>s+v,0);
+    const names = entries.map(([n,a])=>`${n} €${a.toFixed(2)}`).join(' · ');
+    body = `${names} · Total: €${total.toFixed(2)}`;
+  }
+
+  try {
+    const res = await fetch(S.workerUrl + '/notify', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        deviceId,
+        title: '💸 Split Reminder',
+        body,
+        icon: '/monarka/icon-192.png'
+      })
+    });
+    const d = await res.json();
+    if(d.ok) { hap('success'); toast('Reminder sent! 🔔', 'ok'); }
+    else toast('Could not send — check Worker URL');
+  } catch(e) {
+    toast('Failed to send reminder');
+  }
 }
 
 // ── CLOUD SYNC ────────────────────────────────────────────────────────────
