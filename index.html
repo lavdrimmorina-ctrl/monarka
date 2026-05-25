@@ -719,20 +719,13 @@ html.theme-light .tabs-pill{
 .toast.warn{color:var(--red);border-color:var(--red-border);background:var(--red-bg)}
 </style>
 </head>
-<body>
+<body></div>
 
 <!-- LOCK SCREEN -->
 <div class="lock-screen hidden" id="lock-screen">
   <div class="lock-logo">👑</div>
   <div class="lock-app-name">Mon<span>Arka</span></div>
   <div class="lock-sub" id="lock-sub">Enter your PIN to continue.</div>
-  <button class="lock-btn" id="faceid-btn" onclick="authenticateBiometric()" style="display:flex; margin-bottom:10px">
-    <svg viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="1.5">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
-      <path d="M12 6v6l4 2"/>
-    </svg>
-  </button>
-  <div class="lock-btn-lbl" id="faceid-lbl" style="margin-bottom:0">or use Face ID</div>
   <div class="lock-btn" id="lock-btn" onclick="authenticate()" style="display:none">
     <svg viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="1.5" style="width:36px;height:36px">
       <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -760,6 +753,7 @@ html.theme-light .tabs-pill{
       <button class="pin-key" onclick="pinPress('0')">0</button>
       <button class="pin-key" onclick="pinDel()">⌫</button>
     </div>
+    
   </div>
 </div>
 
@@ -1028,17 +1022,6 @@ html.theme-light .tabs-pill{
           <div>System</div>
         </button>
       </div>
-
-      <!-- Security section with Face ID toggle -->
-      <div class="set-sect">Security</div>
-      <div class="sync-row" id="biometric-row" style="display:none">
-        <div class="sync-info">
-          <div class="sync-title">Face ID / Touch ID</div>
-          <div class="sync-sub" id="biometric-status">Unlock with your device</div>
-        </div>
-        <div class="toggle-sw" id="biometric-toggle" style="width:44px;height:24px"></div>
-      </div>
-
       <div class="set-sect">Salary</div>
       <div class="fl-group"><div class="fl-lbl">Monthly net (€)</div><input class="fl-input" type="number" id="s-sal" placeholder="e.g. 800" inputmode="decimal"></div>
       <div class="set-sect">Payday</div>
@@ -1121,6 +1104,10 @@ html.theme-light .tabs-pill{
   </button>
 </div>
 
+
+
+
+
 <!-- EDIT EXPENSE MODAL -->
 <div class="edit-modal-wrap" id="edit-modal" onclick="closeEditModal(event)">
   <div class="modal">
@@ -1141,6 +1128,7 @@ html.theme-light .tabs-pill{
     </div>
   </div>
 </div>
+
 
 <!-- NET SAVINGS MODAL -->
 <div class="modal-wrap" id="net-modal" onclick="closeNetModal(event)">
@@ -1173,7 +1161,7 @@ html.theme-light .tabs-pill{
 
 <script>
 // ── STATE ─────────────────────────────────────────────────────────────────
-const DEF={salary:0,payday:25,np:50,wp:30,sp:20,key:'',expenses:[],goals:[],recurring:[], biometricEnabled:false, biometricCredentialId:null};
+const DEF={salary:0,payday:25,np:50,wp:30,sp:20,key:'',expenses:[],goals:[],recurring:[]};
 let S={...DEF};
 let amt='',cat='',gEmoji='🎯',isRecurring=false,recFreq='monthly';
 let activeFilter='all',reportOffset=0;
@@ -1196,125 +1184,8 @@ function hap(t='light'){
   }
 }
 
-// ── BIOMETRIC (Face ID) ──────────────────────────────────────────────────
-async function isBiometricAvailable() {
-  try {
-    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-  } catch(e) { return false; }
-}
-
-async function registerBiometric() {
-  if (!S.biometricEnabled) return false;
-  try {
-    const challenge = crypto.getRandomValues(new Uint8Array(32));
-    const credential = await navigator.credentials.create({
-      publicKey: {
-        challenge,
-        rp: { name: "MonArka", id: window.location.hostname },
-        user: {
-          id: new TextEncoder().encode("monarka-user"),
-          name: "monarka@local",
-          displayName: "MonArka User"
-        },
-        pubKeyCredParams: [{ alg: -7, type: "public-key" }],
-        authenticatorSelection: { userVerification: "required", authenticatorAttachment: "platform" },
-        timeout: 60000
-      }
-    });
-    if (credential && credential.rawId) {
-      S.biometricCredentialId = btoa(String.fromCharCode(...new Uint8Array(credential.rawId)));
-      sv();
-      toast("Face ID enabled ✓", "ok");
-      updateBiometricUI();
-      return true;
-    }
-  } catch(e) {
-    console.error("Biometric registration failed", e);
-    toast("Face ID setup cancelled or failed", "warn");
-    S.biometricEnabled = false;
-    sv();
-  }
-  return false;
-}
-
-async function authenticateBiometric() {
-  if (!S.biometricCredentialId) return false;
-  try {
-    const allowCredential = {
-      id: Uint8Array.from(atob(S.biometricCredentialId), c=>c.charCodeAt(0)),
-      type: "public-key"
-    };
-    const assertion = await navigator.credentials.get({
-      publicKey: {
-        challenge: crypto.getRandomValues(new Uint8Array(32)),
-        allowCredentials: [allowCredential],
-        userVerification: "required",
-        timeout: 60000
-      }
-    });
-    if (assertion) {
-      hap('success');
-      hideLockScreen();
-      return true;
-    }
-  } catch(e) {
-    console.log("Biometric authentication failed or cancelled", e);
-  }
-  return false;
-}
-
-async function toggleBiometric() {
-  const isOn = document.getElementById('biometric-toggle').classList.contains('on');
-  if (isOn) {
-    // Disable
-    S.biometricEnabled = false;
-    S.biometricCredentialId = null;
-    sv();
-    toast("Face ID disabled", "warn");
-    updateBiometricUI();
-  } else {
-    // Enable: check availability first
-    const available = await isBiometricAvailable();
-    if (!available) {
-      toast("Face ID not supported on this device", "warn");
-      return;
-    }
-    S.biometricEnabled = true;
-    sv();
-    const success = await registerBiometric();
-    if (!success) {
-      S.biometricEnabled = false;
-      sv();
-    }
-    updateBiometricUI();
-  }
-}
-
-function updateBiometricUI() {
-  const row = document.getElementById('biometric-row');
-  const toggle = document.getElementById('biometric-toggle');
-  const status = document.getElementById('biometric-status');
-  if (!row) return;
-  if (S.biometricEnabled && S.biometricCredentialId) {
-    toggle.classList.add('on');
-    status.textContent = 'Unlock with Face ID / Touch ID';
-  } else {
-    toggle.classList.remove('on');
-    status.textContent = 'Not enabled';
-  }
-}
-
-// Show/hide Face ID row based on device capability
-async function setupBiometricUI() {
-  const available = await isBiometricAvailable();
-  const row = document.getElementById('biometric-row');
-  if (row) row.style.display = available ? 'flex' : 'none';
-  if (available) updateBiometricUI();
-  const toggle = document.getElementById('biometric-toggle');
-  if (toggle) toggle.onclick = toggleBiometric;
-}
-
 // ── NAVIGATION ────────────────────────────────────────────────────────────
+// ── TAB ORDER for swipe ──────────────────────────────────────────────────
 const TAB_ORDER=['dash','log','goals','report','settings'];
 
 function goto(id,btn,skipHap){
@@ -1329,6 +1200,7 @@ function goto(id,btn,skipHap){
   if(id==='goals'){renderGoals();renderRecurringList();}
   if(id==='report'){reportOffset=0;renderReport();}
   if(id==='settings')loadForm();
+  // FAB is inside log page — always visible there
   const fab=document.getElementById('scan-fab');
   if(fab)fab.className='scan-fab visible';
 }
@@ -1343,12 +1215,14 @@ function movePill(activeBtn){
   pill.style.width=(btnRect.width-8)+'px';
 }
 
-// Swipe between tabs (unchanged)
+// ── SWIPE BETWEEN TABS (tab bar only) ────────────────────────────────────
 (function(){
   const tabBar=document.getElementById('tabs-bar');
   if(!tabBar)return;
   let sx=0,sy=0;
-  tabBar.addEventListener('touchstart',e=>{ sx=e.touches[0].clientX; sy=e.touches[0].clientY; },{passive:true});
+  tabBar.addEventListener('touchstart',e=>{
+    sx=e.touches[0].clientX;sy=e.touches[0].clientY;
+  },{passive:true});
   tabBar.addEventListener('touchend',e=>{
     const dx=e.changedTouches[0].clientX-sx;
     const dy=e.changedTouches[0].clientY-sy;
@@ -1372,6 +1246,7 @@ const mk=(offset=0)=>{const d=new Date();d.setMonth(d.getMonth()+offset);return 
 const myExp=(offset=0)=>(S.expenses||[]).filter(e=>e.m===mk(offset));
 const fmt=n=>{
   const v=parseFloat(n)||0;
+  // Show decimals only if not a whole number
   return '€'+(Number.isInteger(v)?v.toLocaleString():v.toFixed(2));
 };
 const mo=(offset=0)=>{const d=new Date();d.setMonth(d.getMonth()+offset);return d.toLocaleDateString('en-US',{month:'long',year:'numeric'});}
@@ -1432,6 +1307,7 @@ function renderDash(){
   document.getElementById('h-spt').textContent=fmt(spent);
   document.getElementById('h-svd').textContent=fmt(s);
 
+  // Rings + overspend detection
   const nb=sal*(S.np/100)||1,wb=sal*(S.wp/100)||1,sb=sal*(S.sp/100)||1;
   setRing('n',n,nb);setRing('w',w,wb);setRing('s',s,sb);
   document.getElementById('rn-v').textContent=fmt(n);
@@ -1442,6 +1318,7 @@ function renderDash(){
   document.getElementById('rt-wants').classList.toggle('over-budget',w>wb);
   document.getElementById('rt-savings').classList.toggle('over-budget',s<sb*0.3&&sal>0);
 
+  // Overspend alert
   const alerts=[];
   if(n>nb)alerts.push(`Needs over by €${Math.round(n-nb)}`);
   if(w>wb)alerts.push(`Wants over by €${Math.round(w-wb)}`);
@@ -1450,9 +1327,11 @@ function renderDash(){
     ab.classList.add('show');
     const alertMsg='⚠️ '+alerts.join(' · ')+' — consider cutting back.';
     document.getElementById('alert-text').textContent=alertMsg;
+    // Send push only once per session
     if(!window._overspendPushSent){ window._overspendPushSent=true; sendOverspendPush(alerts.join(' · ')); }
   } else { ab.classList.remove('show'); window._overspendPushSent=false; }
 
+  // Daily limit
   const now=new Date(),pd=S.payday||25;
   let next=new Date(now.getFullYear(),now.getMonth(),pd);
   if(next<=now)next=new Date(now.getFullYear(),now.getMonth()+1,pd);
@@ -1465,15 +1344,18 @@ function renderDash(){
   document.getElementById('limit-sub').textContent=`€${Math.round(dailyBudget)}/day · spent €${Math.round(todaySpent)} today`;
   ls.classList.toggle('over',dailyLeft<0);
 
+  // Payday countdown
   document.getElementById('pay-days').innerHTML=daysLeft+'<span>days</span>';
   const dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
   document.getElementById('pay-fill').style.width=Math.max(4,Math.min(96,(1-daysLeft/dim)*100))+'%';
 
+  // Daily rec
   const rec=getDailyRec();
   document.getElementById('rec-icon').textContent=rec.icon;
   document.getElementById('rec-icon').style.background=rec.bg;
   document.getElementById('rec-text').textContent=rec.text;
 
+  // Expense list with search + filter
   const el=document.getElementById('recent-list');
   const q=(document.getElementById('search-input').value||'').toLowerCase();
   let filtered=[...exps].reverse();
@@ -1494,6 +1376,8 @@ function renderDash(){
         <div class="exp-amt ${e.c}">€${Math.round(e.a)}</div>
       </div>
     </div>`).join('');
+
+  // Swipe to delete
   filtered.forEach(e=>initSwipe(e.id));
 }
 
@@ -1507,7 +1391,7 @@ function setRing(id,spent,budget){
   else if(el)el.style.stroke='var(--lime-text)';
 }
 
-// Swipe to delete (unchanged)
+// ── SWIPE TO DELETE ───────────────────────────────────────────────────────
 function initSwipe(id){
   const row=document.getElementById('er-'+id);
   if(!row)return;
@@ -1644,6 +1528,9 @@ function saveGoal(){
 }
 function delGoal(i){hap('error');S.goals.splice(i,1);sv();renderGoals();}
 
+
+
+
 // ── ONBOARDING ────────────────────────────────────────────────────────────
 let obIdx=0;
 const OB_TOTAL=3;
@@ -1677,6 +1564,7 @@ function obFinish(){
   document.getElementById('onboard').classList.add('hidden');
   renderDash();
   hap('success');
+  // After onboarding completes, set up PIN
   const hasPin = !!localStorage.getItem('mk-pin-hash');
   if(!hasPin){
     setTimeout(() => showLockScreen(), 400);
@@ -1724,8 +1612,11 @@ function calcScore(n,w,s,sal){
   if(!sal) return {grade:'—',label:'No salary set',reason:'Add your salary in Settings.',color:'var(--muted)',pct:0};
   const nb=sal*(S.np/100), wb=sal*(S.wp/100), sb=sal*(S.sp/100);
   let pts=0, max=0;
+  // Needs: under budget = good (40 pts)
   max+=40; if(n<=nb) pts+=40; else pts+=Math.max(0,40-Math.round((n-nb)/nb*40));
+  // Wants: under budget = good (30 pts)
   max+=30; if(w<=wb) pts+=30; else pts+=Math.max(0,30-Math.round((w-wb)/wb*30));
+  // Savings: hit target = good (30 pts)
   max+=30; const sRatio=sb>0?s/sb:0; pts+=Math.min(30,Math.round(sRatio*30));
   const pct=Math.round(pts/max*100);
   let grade,label,reason,color;
@@ -1788,14 +1679,19 @@ function saveEdit(){
   toast('Updated!','ok');
 }
 
+
+
+
 // ── NET SAVINGS TRACKER ───────────────────────────────────────────────────
 function renderNet(){
   const base=S.netBase||0;
+  // Add all savings logged across all months
   const totalSaved=(S.expenses||[]).filter(e=>e.c==='savings').reduce((a,e)=>a+e.a,0);
   const net=base+totalSaved;
   const el=document.getElementById('net-amount');
   if(el)el.textContent=fmt(net);
 
+  // Build month history chips
   const hist=document.getElementById('net-history');
   if(!hist)return;
   const months={};
@@ -2005,6 +1901,7 @@ Top: ${[...exps].sort((a,b)=>b.a-a.a).slice(0,3).map(e=>e.n+' €'+Math.round(e.
   try{
     let text='';
     if(S.key.startsWith('gsk_')){
+      // Groq
       const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+S.key},
@@ -2013,6 +1910,7 @@ Top: ${[...exps].sort((a,b)=>b.a-a.a).slice(0,3).map(e=>e.n+' €'+Math.round(e.
       const d=await r.json();
       text=d.choices?.[0]?.message?.content||'No response.';
     } else {
+      // Gemini fallback
       const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${S.key}`,{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:180,temperature:0.7}})
@@ -2058,12 +1956,19 @@ function exportCSV(){
   toast('Exported '+exps.length+' expenses','ok');
 }
 
-// ── AUTHENTICATION — PIN and Biometric ───────────────────────────────────
+
+
+
+// ── AUTHENTICATION — PIN only, no WebAuthn ───────────────────────────────
+// WebAuthn on github.io always shows passkey picker — not suitable.
+// PIN stored as SHA-256 hash. Fast, secure, no browser prompts.
+
 const PIN_KEY = 'mk-pin-hash';
 let authFailCount = 0;
 let pinEntry = '';
 let pinMode = 'verify'; // 'verify' | 'setup' | 'confirm'
 let pinFirst = '';
+let lockTimer = null;
 
 function showLockScreen(){
   const lock = document.getElementById('lock-screen');
@@ -2073,10 +1978,6 @@ function showLockScreen(){
   const hasPin = !!localStorage.getItem(PIN_KEY);
   if(hasPin){
     showPinPad('verify');
-    // If biometric is enabled, try Face ID automatically
-    if(S.biometricEnabled && S.biometricCredentialId) {
-      setTimeout(() => authenticateBiometric(), 100);
-    }
   } else {
     showPinPad('setup');
   }
@@ -2092,16 +1993,18 @@ function hideLockScreen(){
   if(S.workerUrl) cloudLoad();
 }
 
-function authenticate(){ /* dummy for lock btn */ }
+// Dummy — called from lock btn, just refocus PIN
+function authenticate(){
+  document.querySelector('.pin-key')?.focus();
+}
 
+// ── PIN PAD ───────────────────────────────────────────────────────────────
 function showPinPad(mode){
   pinMode = mode || 'verify';
   pinEntry = '';
   pinFirst = '';
   updatePinDisplay();
   document.getElementById('lock-pin-wrap').style.display = 'block';
-  document.getElementById('faceid-btn').style.display = 'flex';
-  document.getElementById('faceid-lbl').style.display = 'block';
   document.getElementById('lock-btn').style.display = 'none';
   const lbl = document.getElementById('lock-btn-lbl');
   if(lbl) lbl.style.display = 'none';
@@ -2115,14 +2018,15 @@ function showPinPad(mode){
 
 function hidePinPad(){
   document.getElementById('lock-pin-wrap').style.display = 'none';
-  document.getElementById('faceid-btn').style.display = 'none';
-  document.getElementById('faceid-lbl').style.display = 'none';
   document.getElementById('lock-btn').style.display = 'flex';
   const lbl = document.getElementById('lock-btn-lbl');
   if(lbl) lbl.style.display = 'block';
   pinEntry = '';
   updatePinDisplay();
 }
+
+// Called from "Use Face ID instead" — just refocus PIN on github.io
+function tryFaceID(){ /* no-op on shared domain */ }
 
 function pinPress(d){
   if(pinEntry.length >= 6) return;
@@ -2335,6 +2239,7 @@ async function toggleNotifications(){
     const perm = await Notification.requestPermission();
     if(perm !== 'granted'){ toast('Permission denied'); return; }
 
+    // Get VAPID key from worker
     const keyRes = await fetch(S.workerUrl + '/vapid-public-key');
     const { key: vapidKey } = await keyRes.json();
 
@@ -2344,6 +2249,7 @@ async function toggleNotifications(){
       applicationServerKey: urlBase64ToUint8Array(vapidKey)
     });
 
+    // Send subscription to worker
     await fetch(S.workerUrl + '/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2367,6 +2273,7 @@ function urlBase64ToUint8Array(base64String){
   return Uint8Array.from(raw, c => c.charCodeAt(0));
 }
 
+// Send overspend push notification
 async function sendOverspendPush(msg){
   if(!S.workerUrl || !S.pushSubscribed) return;
   try {
@@ -2384,6 +2291,7 @@ let scanResult = null;
 function openScannerModal(){
   hap('light');
   document.getElementById('scanner-modal').classList.add('open');
+  // Show FAB only on log tab
 }
 
 function closeScannerModal(){
@@ -2408,6 +2316,7 @@ function handleScanFile(e){
   if(!file) return;
   const reader = new FileReader();
   reader.onload = async ev => {
+    // Show preview
     const wrap = document.getElementById('scanner-preview-wrap');
     document.getElementById('scanner-preview-img').src = ev.target.result;
     wrap.style.display = 'block';
@@ -2436,6 +2345,7 @@ async function analyseReceipt(dataUrl){
   const base64 = dataUrl.split(',')[1];
   const mimeType = dataUrl.split(';')[0].split(':')[1];
 
+  // Resize image to reduce payload size — max 1024px
   const resized = await resizeImage(dataUrl, 1024);
   const resizedBase64 = resized.split(',')[1];
 
@@ -2445,6 +2355,7 @@ async function analyseReceipt(dataUrl){
     let text = '';
 
     if(S.key.startsWith('gsk_')){
+      // Groq vision
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -2468,6 +2379,7 @@ async function analyseReceipt(dataUrl){
       if(d.error){ showError('Groq error: ' + d.error.message); return; }
       text = d.choices?.[0]?.message?.content || '';
     } else {
+      // Gemini vision
       const res = await fetch(
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + S.key,
         {
@@ -2487,6 +2399,7 @@ async function analyseReceipt(dataUrl){
       text = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
     }
 
+    // Extract JSON from response — handle markdown fences
     const jsonMatch = text.match(/\{[\s\S]*?\}/);
     if(!jsonMatch){ showError('AI could not find an amount. Try a clearer photo of the total.'); return; }
 
@@ -2505,6 +2418,7 @@ async function analyseReceipt(dataUrl){
   }
 }
 
+// Resize image to max dimension before sending to AI
 function resizeImage(dataUrl, maxSize){
   return new Promise(resolve => {
     const img = new Image();
@@ -2537,6 +2451,7 @@ function useScan(){
   }
   document.getElementById('add-btn').disabled = !(parseFloat(amt) > 0 && cat);
   closeScannerModal();
+  // Go to log tab
   goto('log', document.getElementById('tab-log'), true);
   toast('Filled in! Pick a category ↓', 'ok');
   scanResult = null;
@@ -2555,14 +2470,18 @@ function setTheme(mode){
 
 function applyTheme(mode){
   const root = document.documentElement;
+  // Remove all theme classes
   root.classList.remove('theme-dark','theme-light','theme-system');
   root.classList.add('theme-' + mode);
 
+  // Determine if we're actually in light mode
   const isLight = mode === 'light' ||
     (mode === 'system' && window.matchMedia('(prefers-color-scheme:light)').matches);
 
+  // Force body background immediately
   document.body.style.background = isLight ? '#f0f2f5' : '#000000';
 
+  // Update tab bar
   const tabs = document.getElementById('tabs-bar');
   if(tabs){
     tabs.style.background = isLight
@@ -2573,6 +2492,7 @@ function applyTheme(mode){
       : 'rgba(201,168,76,0.2)';
   }
 
+  // Update tab bar pill
   const pill = document.getElementById('tabs-pill');
   if(pill){
     pill.style.background = isLight
@@ -2583,6 +2503,7 @@ function applyTheme(mode){
       : 'rgba(201,168,76,0.35)';
   }
 
+  // Update header
   const hdr = document.querySelector('.hdr');
   if(hdr) hdr.style.background = isLight ? '#f0f2f5' : '#000000';
 }
@@ -2606,7 +2527,6 @@ function loadForm(){
   if(lastSyncTs) updateSyncStatus('synced','Last saved '+new Date(lastSyncTs).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
   document.getElementById('s-worker').value=S.workerUrl||'';
   updateNotifBtn();
-  setupBiometricUI(); // show/hide Face ID toggle
 }
 function saveSettings(){
   S.salary=parseFloat(document.getElementById('s-sal').value)||0;
@@ -2640,35 +2560,45 @@ function toast(msg,type=''){
 
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 
+
+
 ld();
 autoLogRecurring();
 renderDash();
 document.getElementById('hdr-date').textContent=mo();
+// Wire up onboarding buttons
 document.getElementById('ob-btn').addEventListener('click', obNext);
 updateNotifBtn();
 document.getElementById('ob-skip').addEventListener('click', obFinish);
+// Apply saved theme on load
 const savedTheme = S.theme || 'dark';
 applyTheme(savedTheme);
 updateThemeBtns(savedTheme);
-
+// Show onboarding on fresh install, lock screen if PIN exists
 const hasPinSetup = !!localStorage.getItem('mk-pin-hash');
 const shouldOnboard = !S.onboarded && !S.salary;
 
 if(shouldOnboard){
+  // Fresh install — show onboarding, no lock
   document.getElementById('onboard').classList.remove('hidden');
 } else if(hasPinSetup){
+  // Returning user with PIN — show lock
   document.getElementById('onboard').classList.add('hidden');
   showLockScreen();
 } else {
+  // Has data but no PIN — show dashboard, prompt PIN setup
   document.getElementById('onboard').classList.add('hidden');
   if(S.workerUrl) cloudLoad();
-  setTimeout(() => showLockScreen(), 500);
+  setTimeout(() => showLockScreen(), 500); // prompt PIN setup
 }
-
+// Re-apply when system theme changes (for system mode)
 window.matchMedia('(prefers-color-scheme:light)').addEventListener('change', () => {
   if((S.theme || 'dark') === 'system') applyTheme('system');
 });
 
+// Show onboarding on first launch
+
+// Init pill on first active tab
 requestAnimationFrame(()=>{
   const active=document.querySelector('.tab.active');
   if(active)movePill(active);
@@ -2678,6 +2608,7 @@ window.addEventListener('resize',()=>{
   if(active)movePill(active);
 });
 </script>
+
 
 <!-- SCANNER MODAL -->
 <div class="scanner-modal" id="scanner-modal">
