@@ -702,6 +702,21 @@ html.theme-light .tabs-pill{
 .sync-dot.unsynced{background:#ff6b6b}
 .sync-dot.syncing{background:#c9a84c;animation:pulse 1.5s infinite}
 
+
+/* UPDATE BANNER */
+.update-banner{
+  position:fixed;top:calc(env(safe-area-inset-top,44px) + 56px);
+  left:12px;right:12px;z-index:200;
+  background:var(--lime-bg);border:1px solid var(--lime-border);
+  border-radius:14px;padding:12px 16px;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  transform:translateY(-120%);transition:transform .4s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:0 4px 20px rgba(0,0,0,0.2);
+}
+.update-banner.show{transform:translateY(0)}
+.update-banner-text{font-size:13px;font-weight:500;color:var(--lime-text)}
+.update-banner-btn{padding:6px 14px;background:var(--lime);border:none;border-radius:8px;color:#0a0c02;font-family:'Outfit',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+
 /* TOAST */
 .toast{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);left:50%;transform:translateX(-50%) translateY(14px);background:var(--surface3);border:1px solid var(--border2);color:var(--text);padding:10px 20px;border-radius:50px;font-size:13px;font-weight:500;opacity:0;transition:all .28s cubic-bezier(.34,1.56,.64,1);pointer-events:none;white-space:nowrap;z-index:9999;letter-spacing:0.04em}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -710,6 +725,13 @@ html.theme-light .tabs-pill{
 </style>
 </head>
 <body>
+
+
+<!-- UPDATE BANNER -->
+<div class="update-banner" id="update-banner">
+  <div class="update-banner-text">🆕 New version available!</div>
+  <button class="update-banner-btn" onclick="reloadApp()">Update</button>
+</div>
 
 <!-- LOCK SCREEN -->
 <div class="lock-screen hidden" id="lock-screen">
@@ -2490,6 +2512,45 @@ function toast(msg,type=''){
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────
+
+// ── AUTO UPDATE LISTENER ──────────────────────────────────────────────────
+if('serviceWorker' in navigator){
+  // Listen for SW update message
+  navigator.serviceWorker.addEventListener('message', e => {
+    if(e.data?.type === 'SW_UPDATED'){
+      const banner = document.getElementById('update-banner');
+      if(banner) banner.classList.add('show');
+    }
+  });
+
+  // Also check for waiting SW on load
+  navigator.serviceWorker.ready.then(reg => {
+    if(reg.waiting){
+      const banner = document.getElementById('update-banner');
+      if(banner) banner.classList.add('show');
+    }
+    // Listen for new SW installing
+    reg.addEventListener('updatefound', () => {
+      const newWorker = reg.installing;
+      newWorker.addEventListener('statechange', () => {
+        if(newWorker.state === 'installed' && navigator.serviceWorker.controller){
+          const banner = document.getElementById('update-banner');
+          if(banner) banner.classList.add('show');
+        }
+      });
+    });
+  });
+}
+
+function reloadApp(){
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.ready.then(reg => {
+      if(reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    });
+  }
+  window.location.reload(true);
+}
+
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 
 
