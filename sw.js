@@ -3,7 +3,7 @@
 
 // Version is injected automatically at deploy time via GitHub Actions
 // Falls back to timestamp if not injected
-const VERSION = 'monarka-1779692101';
+const VERSION = 'monarka-1779692265';
 const ASSETS = ['./manifest.json'];
 
 self.addEventListener('install', e => {

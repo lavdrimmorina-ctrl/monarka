@@ -663,6 +663,13 @@ html.theme-light .tabs-pill{
 }
 
 
+
+/* PIN FALLBACK */
+.pin-dot{width:12px;height:12px;border-radius:50%;border:2px solid rgba(201,168,76,0.4);transition:background .2s}
+.pin-dot.filled{background:var(--lime);border-color:var(--lime)}
+.pin-key{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:14px 8px;font-size:20px;font-weight:500;color:#fff;cursor:pointer;font-family:'Outfit',sans-serif;transition:background .1s,transform .1s}
+.pin-key:active{background:rgba(201,168,76,0.2);transform:scale(0.92)}
+
 /* LOCK SCREEN */
 .lock-screen{
   position:fixed;inset:0;z-index:3000;
@@ -689,7 +696,7 @@ html.theme-light .tabs-pill{
 .lock-btn svg{width:36px;height:36px;stroke:#c9a84c;stroke-width:1.5;fill:none}
 .lock-btn-lbl{font-size:12px;color:rgba(255,255,255,0.45);letter-spacing:0.08em;text-transform:uppercase;font-weight:600;margin-bottom:40px}
 .lock-error{font-size:13px;color:#ff6b6b;text-align:center;min-height:20px;margin-bottom:16px}
-.lock-skip{font-size:12px;color:rgba(255,255,255,0.25);cursor:pointer;padding:8px;text-decoration:underline}
+
 
 /* SYNC STATUS */
 .sync-row{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:13px 16px;margin-bottom:8px}
@@ -743,7 +750,28 @@ html.theme-light .tabs-pill{
   </div>
   <div class="lock-btn-lbl" id="lock-btn-lbl">Tap to authenticate</div>
   <div class="lock-error" id="lock-error"></div>
-  <div class="lock-skip" onclick="unlockWithoutBiometrics()">Skip for now</div>
+  <div id="lock-pin-wrap" style="display:none;width:100%">
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);text-align:center;margin-bottom:12px;letter-spacing:0.1em;text-transform:uppercase">Enter PIN instead</div>
+    <div style="display:flex;justify-content:center;gap:10px;margin-bottom:12px" id="pin-dots">
+      <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+      <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:240px;margin:0 auto">
+      <button class="pin-key" onclick="pinPress('1')">1</button>
+      <button class="pin-key" onclick="pinPress('2')">2</button>
+      <button class="pin-key" onclick="pinPress('3')">3</button>
+      <button class="pin-key" onclick="pinPress('4')">4</button>
+      <button class="pin-key" onclick="pinPress('5')">5</button>
+      <button class="pin-key" onclick="pinPress('6')">6</button>
+      <button class="pin-key" onclick="pinPress('7')">7</button>
+      <button class="pin-key" onclick="pinPress('8')">8</button>
+      <button class="pin-key" onclick="pinPress('9')">9</button>
+      <button class="pin-key" onclick="pinClear()" style="font-size:13px">Clear</button>
+      <button class="pin-key" onclick="pinPress('0')">0</button>
+      <button class="pin-key" onclick="pinDel()" style="font-size:16px">⌫</button>
+    </div>
+  </div>
+
 </div>
 
 <!-- ONBOARDING -->
@@ -1943,6 +1971,61 @@ function exportCSV(){
 
 
 
+
+// ── PIN FALLBACK ──────────────────────────────────────────────────────────
+let pinEntry = '';
+let authFailCount = 0;
+
+function pinPress(d){
+  if(pinEntry.length >= 6) return;
+  pinEntry += d;
+  updatePinDots();
+  if(pinEntry.length === 6) setTimeout(verifyPin, 150);
+}
+function pinDel(){ pinEntry = pinEntry.slice(0,-1); updatePinDots(); }
+function pinClear(){ pinEntry = ''; updatePinDots(); }
+
+function updatePinDots(){
+  document.querySelectorAll('.pin-dot').forEach((d,i) => {
+    d.classList.toggle('filled', i < pinEntry.length);
+  });
+}
+
+function verifyPin(){
+  const stored = localStorage.getItem('monarka-pin');
+  if(!stored){
+    // First time setting PIN
+    localStorage.setItem('monarka-pin', pinEntry);
+    hap('success');
+    hideLockScreen();
+    if(S.workerUrl) cloudLoad();
+    toast('PIN set!', 'ok');
+  } else if(pinEntry === stored){
+    hap('success');
+    hideLockScreen();
+    if(S.workerUrl) cloudLoad();
+  } else {
+    hap('error');
+    pinEntry = '';
+    updatePinDots();
+    document.getElementById('lock-error').textContent = 'Wrong PIN';
+    setTimeout(() => { document.getElementById('lock-error').textContent = ''; }, 1500);
+  }
+}
+
+function showPinFallback(){
+  pinEntry = '';
+  updatePinDots();
+  document.getElementById('lock-pin-wrap').style.display = 'block';
+  document.getElementById('lock-btn').style.display = 'none';
+  const lbl = document.getElementById('lock-btn-lbl');
+  if(lbl) lbl.style.display = 'none';
+  // If no PIN set yet, show setup message
+  if(!localStorage.getItem('monarka-pin')){
+    document.getElementById('lock-error').textContent = 'Set a 6-digit PIN as backup';
+  }
+}
+
 // ── FACE ID / BIOMETRIC AUTH ──────────────────────────────────────────────
 let authPassed = false;
 
@@ -2054,14 +2137,19 @@ async function authenticate(){
 
   } catch(err) {
     if(err.name === 'NotAllowedError'){
-      errEl.textContent = 'Cancelled — tap to try again';
+      authFailCount++;
+      if(authFailCount >= 2){
+        errEl.textContent = '';
+        showPinFallback();
+      } else {
+        errEl.textContent = 'Cancelled — tap to try again';
+      }
     } else if(err.name === 'InvalidStateError' || err.name === 'UnknownError'){
       // Credential gone — reset and re-setup
       localStorage.removeItem('monarka-cred-id');
       errEl.textContent = 'Reset — tap to set up again';
     } else {
-      errEl.textContent = err.message;
-      setTimeout(() => unlockWithoutBiometrics(), 3000);
+      errEl.textContent = 'Authentication failed. Tap to retry.';
     }
     lbl.textContent = 'Tap to retry';
     hap('error');
@@ -2069,6 +2157,7 @@ async function authenticate(){
 }
 
 function unlockWithoutBiometrics(){
+  // Only called when device genuinely has no biometrics
   hideLockScreen();
   if(S.workerUrl) cloudLoad();
 }
@@ -2590,12 +2679,13 @@ document.getElementById('ob-skip').addEventListener('click', obFinish);
 const savedTheme = S.theme || 'dark';
 applyTheme(savedTheme);
 updateThemeBtns(savedTheme);
-// Show lock screen if app has data
-if(S.salary || (S.expenses && S.expenses.length > 0)){
+// Show lock screen only if app has been set up
+// Fresh install with no data → skip lock, show onboarding
+if(S.salary || (S.expenses && S.expenses.length > 0) || S.onboarded){
   showLockScreen();
-} else if(S.workerUrl) {
-  // No local data — try cloud restore silently
-  cloudLoad();
+} else {
+  // Brand new install — no lock, go to onboarding
+  if(S.workerUrl) cloudLoad();
 }
 // Re-apply when system theme changes (for system mode)
 window.matchMedia('(prefers-color-scheme:light)').addEventListener('change', () => {
