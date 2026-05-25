@@ -713,6 +713,9 @@ html.theme-light .tabs-pill{
 
 
 
+
+.exp-split-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--lime-text);background:var(--lime-bg);border:1px solid var(--lime-border);border-radius:6px;padding:2px 7px;margin-top:3px;cursor:pointer}
+
 /* SPLITS */
 .split-person-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px 16px;margin-bottom:8px}
 .split-person-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
@@ -1606,9 +1609,12 @@ function renderDash(){
         <div class="exp-ico ${e.c}">${e.isAuto?'🔁':e.c==='needs'?'🏠':e.c==='wants'?'🎉':'💰'}</div>
         <div class="exp-body">
           <div class="exp-name">${e.n||'Expense'}${e.isAuto?'<span class="rec-badge">AUTO</span>':''}</div>
-          <div class="exp-sub">${e.c} · ${new Date(e.d).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>
+          <div class="exp-sub">${e.c} · ${new Date(e.d).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}${(()=>{const sp=(S.splits||[]).find(s=>s.expenseId===e.id);if(!sp)return '';const u=sp.people.filter(p=>!p.settled).length;return u>0?' · <span style="color:var(--lime-text)">➗ '+u+' owe</span>':' · <span style="color:#4caf50">➗ settled</span>';})()}</div>
         </div>
-        <div class="exp-amt ${e.c}">€${Math.round(e.a)}</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+          <div class="exp-amt ${e.c}">€${Number.isInteger(e.a)?e.a:parseFloat(e.a).toFixed(2)}</div>
+          ${(()=>{const r=getReceiptForExp(e.id);return r?`<img src="${r}" class="receipt-thumb" onclick="event.stopPropagation();openReceiptView('${e.id}')" onerror="this.style.display='none'">`:''})()}
+        </div>
       </div>
     </div>`).join('');
 
