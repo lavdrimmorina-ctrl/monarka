@@ -1,39 +1,71 @@
-const CACHE = 'monarka-v1';
-const ASSETS = [
-  './',
-  './index.html',
-  './manifest.json',
-];
+// MonArka Service Worker
+// Strategy: network-first for HTML (always get latest), cache-first for assets
+
+const VERSION = 'monarka-v3'; // bump this with each deploy
+const ASSETS = ['./manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(VERSION)
+      .then(c => c.addAll(ASSETS))
+      .then(() => self.skipWaiting()) // activate immediately
   );
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    // Delete ALL old caches when new version activates
+    caches.keys()
+      .then(keys => Promise.all(
+        keys.filter(k => k !== VERSION).map(k => {
+          console.log('[MonArka SW] Deleting old cache:', k);
+          return caches.delete(k);
+        })
+      ))
+      .then(() => self.clients.claim()) // take control immediately
   );
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.url.includes('groq.com') ||
-      e.request.url.includes('googleapis.com') ||
-      e.request.url.includes('fonts.gstatic')) {
-    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+  const url = new URL(e.request.url);
+
+  // ── index.html → NETWORK FIRST, fallback to cache ──────────────────────
+  // This ensures you always get the latest version on next open
+  if (url.pathname.endsWith('/') ||
+      url.pathname.endsWith('/index.html') ||
+      url.pathname.includes('monarka') && url.pathname.endsWith('.html')) {
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          // Update cache with fresh version
+          const clone = res.clone();
+          caches.open(VERSION).then(c => c.put(e.request, clone));
+          return res;
+        })
+        .catch(() => caches.match(e.request)) // offline fallback
+    );
     return;
   }
+
+  // ── API calls → network only, never cache ─────────────────────────────
+  if (url.hostname.includes('groq.com') ||
+      url.hostname.includes('googleapis.com') ||
+      url.hostname.includes('workers.dev') ||
+      url.hostname.includes('fonts.gstatic')) {
+    e.respondWith(fetch(e.request).catch(() => new Response('', { status: 503 })));
+    return;
+  }
+
+  // ── Everything else → cache first, fallback to network ────────────────
   e.respondWith(
-    caches.match(e.request).then(cached =>
-      cached || fetch(e.request).then(res => {
+    caches.match(e.request).then(cached => {
+      if (cached) return cached;
+      return fetch(e.request).then(res => {
         const clone = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
+        caches.open(VERSION).then(c => c.put(e.request, clone));
         return res;
-      })
-    )
+      });
+    })
   );
 });
 
@@ -41,7 +73,6 @@ self.addEventListener('fetch', e => {
 self.addEventListener('push', e => {
   let data = { title: 'MonArka', body: 'Tap to open' };
   try { data = e.data.json(); } catch {}
-
   e.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
@@ -49,22 +80,27 @@ self.addEventListener('push', e => {
       badge: '/monarka/icon-192.png',
       vibrate: [100, 50, 100],
       data: { url: '/monarka/' },
-      actions: [
-        { action: 'open', title: 'Open app' },
-        { action: 'dismiss', title: 'Dismiss' },
-      ],
     })
   );
 });
 
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  if (e.action === 'dismiss') return;
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(cls => {
-      const existing = cls.find(c => c.url.includes('argati-cash'));
+      const existing = cls.find(c => c.url.includes('monarka'));
       if (existing) return existing.focus();
       return clients.openWindow('/monarka/');
+    })
+  );
+});
+
+// ── AUTO-UPDATE CHECK ─────────────────────────────────────────────────────
+// Tell all open tabs to reload when a new version activates
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window' }).then(clients => {
+      clients.forEach(client => client.postMessage({ type: 'SW_UPDATED', version: VERSION }));
     })
   );
 });
