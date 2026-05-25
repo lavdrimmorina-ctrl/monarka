@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MonArka — Clear Cache</title>
+<style>
+  body{font-family:system-ui;background:#000;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px;text-align:center}
+  h1{color:#c9a84c;margin-bottom:8px}
+  p{color:rgba(255,255,255,0.6);margin-bottom:32px;font-size:14px}
+  button{background:#c9a84c;color:#000;border:none;padding:16px 32px;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;width:100%;max-width:300px}
+  #status{margin-top:16px;font-size:13px;color:#4caf50;min-height:20px}
+</style>
+</head>
+<body>
+<h1>💰 MonArka</h1>
+<p>Tap below to clear all caches and get the latest version</p>
+<button onclick="clearAll()">Clear & Update</button>
+<div id="status"></div>
+<script>
+async function clearAll(){
+  const s = document.getElementById('status');
+  s.textContent = 'Clearing caches...';
+  try {
+    // Unregister all service workers
+    if('serviceWorker' in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for(const reg of regs){ await reg.unregister(); }
+      s.textContent = 'Unregistered ' + regs.length + ' service worker(s)...';
+    }
+    // Clear all caches
+    if('caches' in window){
+      const keys = await caches.keys();
+      for(const key of keys){ await caches.delete(key); }
+      s.textContent += ' Cleared ' + keys.length + ' cache(s)...';
+    }
+    s.textContent = '✓ Done! Redirecting to MonArka...';
+    setTimeout(() => {
+      window.location.href = 'https://lavdrimmorina-ctrl.github.io/monarka/?nocache=' + Date.now();
+    }, 1500);
+  } catch(e){
+    s.textContent = 'Error: ' + e.message;
+  }
+}
+</script>
+</body>
+</html>
