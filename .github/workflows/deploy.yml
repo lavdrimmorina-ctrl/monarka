@@ -14,11 +14,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inject version timestamp into sw.js
+      - name: Bump version timestamp
         run: |
           TIMESTAMP=$(date +%s)
-          sed -i "s/self.__VERSION__ || 'monarka-' + Date.now()/'monarka-${TIMESTAMP}'/" sw.js
-          echo "Version: monarka-${TIMESTAMP}"
+          echo "{\"version\":\"${TIMESTAMP}\"}" > version.json
+          echo "Version: ${TIMESTAMP}"
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
