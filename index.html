@@ -758,7 +758,7 @@ html.theme-light .tabs-pill{
 </div>
 
 <!-- ONBOARDING -->
-<div class="onboard" id="onboard">
+<div class="onboard hidden" id="onboard">
   <div class="ob-slides-wrap">
   <div class="ob-slides" id="ob-slides">
     <div class="ob-slide">
@@ -1564,8 +1564,11 @@ function obFinish(){
   document.getElementById('onboard').classList.add('hidden');
   renderDash();
   hap('success');
-  // After onboarding, prompt to set up PIN
-  setTimeout(() => showLockScreen(), 400);
+  // After onboarding completes, set up PIN
+  const hasPin = !!localStorage.getItem('mk-pin-hash');
+  if(!hasPin){
+    setTimeout(() => showLockScreen(), 400);
+  }
 }
 
 // ── CONFETTI ──────────────────────────────────────────────────────────────
@@ -2571,14 +2574,22 @@ document.getElementById('ob-skip').addEventListener('click', obFinish);
 const savedTheme = S.theme || 'dark';
 applyTheme(savedTheme);
 updateThemeBtns(savedTheme);
-// Show lock screen only if PIN has been set up
-// Fresh install with no PIN → skip lock entirely, show onboarding
+// Show onboarding on fresh install, lock screen if PIN exists
 const hasPinSetup = !!localStorage.getItem('mk-pin-hash');
-if(hasPinSetup){
+const shouldOnboard = !S.onboarded && !S.salary;
+
+if(shouldOnboard){
+  // Fresh install — show onboarding, no lock
+  document.getElementById('onboard').classList.remove('hidden');
+} else if(hasPinSetup){
+  // Returning user with PIN — show lock
+  document.getElementById('onboard').classList.add('hidden');
   showLockScreen();
 } else {
-  // No PIN set — go straight to onboarding or dashboard
+  // Has data but no PIN — show dashboard, prompt PIN setup
+  document.getElementById('onboard').classList.add('hidden');
   if(S.workerUrl) cloudLoad();
+  setTimeout(() => showLockScreen(), 500); // prompt PIN setup
 }
 // Re-apply when system theme changes (for system mode)
 window.matchMedia('(prefers-color-scheme:light)').addEventListener('change', () => {
@@ -2586,12 +2597,7 @@ window.matchMedia('(prefers-color-scheme:light)').addEventListener('change', () 
 });
 
 // Show onboarding on first launch
-const shouldOnboard = !S.onboarded && !S.salary;
-if(shouldOnboard){
-  document.getElementById('onboard').classList.remove('hidden');
-} else {
-  document.getElementById('onboard').classList.add('hidden');
-}
+
 // Init pill on first active tab
 requestAnimationFrame(()=>{
   const active=document.querySelector('.tab.active');
@@ -2701,7 +2707,7 @@ window.addEventListener('resize',()=>{
 </div>
 
 <!-- ONBOARDING -->
-<div class="onboard" id="onboard">
+<div class="onboard hidden" id="onboard">
   <div class="ob-slides-wrap">
   <div class="ob-slides" id="ob-slides">
     <div class="ob-slide">
