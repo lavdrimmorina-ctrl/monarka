@@ -119,8 +119,8 @@ body{
 .hdr-logo em{color:var(--muted);font-style:normal;font-weight:400}
 .hdr-right{display:flex;align-items:center;gap:10px}
 .hdr-date{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:0.04em}
-.pages{position:relative;overflow:hidden;height:calc(100vh - env(safe-area-inset-top,44px) - 118px)}
-.page{position:absolute;inset:0;opacity:0;pointer-events:none;transform:translateY(10px) scale(0.99);transition:opacity .24s cubic-bezier(.4,0,.2,1),transform .24s cubic-bezier(.4,0,.2,1)}
+.pages{position:fixed;top:calc(env(safe-area-inset-top,44px) + 52px);left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 72px);overflow:hidden}
+.page{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;pointer-events:none;transform:translateY(10px) scale(0.99);transition:opacity .24s cubic-bezier(.4,0,.2,1),transform .24s cubic-bezier(.4,0,.2,1)}
 .page.active{opacity:1;pointer-events:all;transform:none}
 .scroll-area{height:100%;overflow-y:auto;padding:4px 16px 16px;-webkit-overflow-scrolling:touch}
 .scroll-area::-webkit-scrollbar{display:none}
@@ -712,6 +712,24 @@ html.theme-light .tabs-pill{
 
 
 
+
+/* SPLITS */
+.split-person-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px 16px;margin-bottom:8px}
+.split-person-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.split-person-name{font-size:15px;font-weight:600;color:var(--text)}
+.split-person-amount{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--lime-text)}
+.split-items{display:flex;flex-direction:column;gap:6px}
+.split-item{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--border)}
+.split-item-desc{font-size:13px;color:var(--text);flex:1}
+.split-item-amt{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--muted);margin:0 10px}
+.split-item-settled{font-size:11px;color:#4caf50;font-weight:600}
+.split-settle-btn{padding:5px 12px;background:var(--lime-bg);border:1px solid var(--lime-border);border-radius:8px;color:var(--lime-text);font-family:'Outfit',sans-serif;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;text-transform:uppercase;letter-spacing:0.06em}
+.split-settle-all{width:100%;margin-top:10px;padding:9px;background:var(--lime-bg);border:1px solid var(--lime-border);border-radius:10px;color:var(--lime-text);font-family:'Outfit',sans-serif;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.08em;text-transform:uppercase}
+.split-history{opacity:0.5}
+
+/* RECEIPT THUMB */
+.receipt-thumb{width:36px;height:36px;border-radius:8px;object-fit:cover;cursor:pointer;border:1px solid var(--border);flex-shrink:0}
+
 /* TOAST */
 .toast{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);left:50%;transform:translateX(-50%) translateY(14px);background:var(--surface3);border:1px solid var(--border2);color:var(--text);padding:10px 20px;border-radius:50px;font-size:13px;font-weight:500;opacity:0;transition:all .28s cubic-bezier(.34,1.56,.64,1);pointer-events:none;white-space:nowrap;z-index:9999;letter-spacing:0.04em}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -719,8 +737,7 @@ html.theme-light .tabs-pill{
 .toast.warn{color:var(--red);border-color:var(--red-border);background:var(--red-bg)}
 </style>
 </head>
-<body></div>
-
+<body><
 <!-- LOCK SCREEN -->
 <div class="lock-screen hidden" id="lock-screen">
   <div class="lock-logo">👑</div>
@@ -794,7 +811,6 @@ html.theme-light .tabs-pill{
 
 <!-- CONFETTI -->
 <canvas id="confetti-canvas"></canvas>
-
 
 <div class="hdr">
   <div class="hdr-logo"><span style="color:var(--silver,#b8c4d0);font-weight:300">Mon</span><span style="color:var(--lime);font-weight:800">Arka</span></div>
@@ -915,6 +931,18 @@ html.theme-light .tabs-pill{
         </div>
       </div>
 
+      <div class="rec-toggle" onclick="toggleSplit()" id="split-toggle-row">
+        <div>
+          <div class="rec-toggle-lbl">Split expense</div>
+          <div class="rec-toggle-sub">Track who owes you</div>
+        </div>
+        <div class="toggle-sw" id="split-sw"></div>
+      </div>
+      <div id="split-wrap" style="display:none;margin-bottom:8px">
+        <div id="split-people" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px"></div>
+        <button onclick="addSplitPerson()" style="width:100%;padding:10px;background:transparent;border:1.5px dashed var(--border2);border-radius:12px;color:var(--muted);font-family:'Outfit',sans-serif;font-size:13px;cursor:pointer">+ Add person</button>
+      </div>
+
       <div class="numpad">
         <div class="nb" onclick="np('1')">1</div><div class="nb" onclick="np('2')">2</div><div class="nb" onclick="np('3')">3</div>
         <div class="nb" onclick="np('4')">4</div><div class="nb" onclick="np('5')">5</div><div class="nb" onclick="np('6')">6</div>
@@ -933,6 +961,20 @@ html.theme-light .tabs-pill{
       <button class="add-goal-btn" onclick="openGoalModal()">+ Add new goal</button>
       <div class="sect-lbl">Recurring expenses</div>
       <div id="recurring-list"></div>
+
+      <!-- SPLITS SECTION -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 8px">
+        <div class="set-sect" style="margin:0">Who Owes Me</div>
+        <button onclick="openSplitModal()" style="padding:6px 14px;background:var(--lime-bg);border:1px solid var(--lime-border);border-radius:10px;color:var(--lime-text);font-family:'Outfit',sans-serif;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.08em;text-transform:uppercase">+ New</button>
+      </div>
+      <div id="splits-summary" style="display:none;background:var(--lime-bg);border:1px solid var(--lime-border);border-radius:14px;padding:12px 16px;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--lime-text);margin-bottom:4px">Total owed to you</div>
+        <div style="font-size:24px;font-weight:800;color:var(--lime-text)" id="splits-total">€0</div>
+      </div>
+      <div id="splits-list"></div>
+      <div id="splits-empty" style="text-align:center;padding:20px 16px;color:var(--muted);font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:8px">
+        No splits yet. Toggle "Split" when logging an expense.
+      </div>
       <div class="sect-lbl">Total saved this month</div>
       <div class="gc" style="text-align:center;padding:16px;margin-bottom:8px">
         <div style="font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:600;color:var(--lime-text)" id="g-total-saved">€0</div>
@@ -1040,6 +1082,16 @@ html.theme-light .tabs-pill{
           </div>
         </div>
         <button class="sync-btn" onclick="manualSync()">Sync now</button>
+      </div>
+      <div class="set-sect">Security</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px">
+          <div>
+            <div style="font-size:14px;font-weight:500;color:var(--text)">PIN Code</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Change your 6-digit unlock PIN</div>
+          </div>
+          <button class="notif-enable-btn" onclick="startChangePin()">Change</button>
+        </div>
       </div>
       <div class="set-sect">Notifications</div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:8px">
@@ -1159,6 +1211,189 @@ html.theme-light .tabs-pill{
 
 <div class="toast" id="toast"></div>
 
+<div class="toast" id="toast"></div>
+
+<input type="file" id="scan-file" accept="image/*" style="display:none" onchange="handleScanFile(event)">
+
+
+<div class="scanner-modal" id="scanner-modal">
+  <div class="scanner-modal-hdr">
+    <div class="scanner-modal-title">📷 Receipt Scanner</div>
+    <button class="scanner-close" onclick="closeScannerModal()">✕</button>
+  </div>
+  <div class="scanner-body">
+
+    <div class="scanner-drop" id="scanner-drop" onclick="triggerScanFile()">
+      <span class="scanner-drop-icon">📸</span>
+      <div class="scanner-drop-title">Tap to scan a receipt</div>
+      <div class="scanner-drop-sub">Take a photo or choose from your library.<br>Works with receipts, bank screenshots, invoices.</div>
+    </div>
+
+    <div class="scanner-preview-wrap" id="scanner-preview-wrap">
+      <img id="scanner-preview-img" src="" alt="Receipt preview">
+      <button class="scanner-preview-clear" onclick="clearScan()">✕</button>
+    </div>
+
+    <div class="scanner-analysing" id="scanner-analysing">
+      <div class="scanner-analysing-ring"></div>
+      Analysing your image with AI…
+    </div>
+
+    <div class="scanner-result" id="scanner-result">
+      <div class="scanner-result-hdr">
+        <div class="scanner-result-dot"></div>
+        <div class="scanner-result-lbl">Detected</div>
+      </div>
+      <div class="scanner-result-row">
+        <span class="scanner-result-key">Amount</span>
+        <span class="scanner-result-val" id="scanner-amt">—</span>
+      </div>
+      <div class="scanner-result-row">
+        <span class="scanner-result-key">Description</span>
+        <span class="scanner-result-desc" id="scanner-desc">—</span>
+      </div>
+      <button class="scanner-use-btn" onclick="useScan()">Use this in Log ↗</button>
+    </div>
+
+    <div class="scanner-error" id="scanner-error">
+      Could not read the image. Try a clearer photo with better lighting.
+    </div>
+
+    <div class="scanner-tips">
+      <div class="scanner-tips-title">Tips for best results</div>
+      <div class="scanner-tip">Use a receipt, bank app screenshot, or invoice</div>
+      <div class="scanner-tip">Make sure the total amount is clearly visible</div>
+      <div class="scanner-tip">Good lighting, flat surface, no blur</div>
+      <div class="scanner-tip">Works with any currency or language</div>
+    </div>
+
+  </div>
+</div>
+
+<div class="modal-wrap hidden" id="change-pin-modal">
+  <div class="modal" style="max-width:340px">
+    <div class="modal-hdr">
+      <div class="modal-title">Change PIN</div>
+      <button class="modal-close" onclick="closeChangePinModal()">✕</button>
+    </div>
+    <div style="padding:16px 20px 20px">
+      <div style="font-size:13px;color:var(--muted);text-align:center;margin-bottom:16px" id="change-pin-msg">Enter your current PIN</div>
+      <div style="display:flex;justify-content:center;gap:12px;margin-bottom:16px">
+        <div class="pin-dot" id="cpd0"></div>
+        <div class="pin-dot" id="cpd1"></div>
+        <div class="pin-dot" id="cpd2"></div>
+        <div class="pin-dot" id="cpd3"></div>
+        <div class="pin-dot" id="cpd4"></div>
+        <div class="pin-dot" id="cpd5"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:260px;margin:0 auto">
+        <button class="pin-key" onclick="cpPress('1')">1</button>
+        <button class="pin-key" onclick="cpPress('2')">2</button>
+        <button class="pin-key" onclick="cpPress('3')">3</button>
+        <button class="pin-key" onclick="cpPress('4')">4</button>
+        <button class="pin-key" onclick="cpPress('5')">5</button>
+        <button class="pin-key" onclick="cpPress('6')">6</button>
+        <button class="pin-key" onclick="cpPress('7')">7</button>
+        <button class="pin-key" onclick="cpPress('8')">8</button>
+        <button class="pin-key" onclick="cpPress('9')">9</button>
+        <button class="pin-key" onclick="cpClear()" style="font-size:12px;color:var(--muted)">CLR</button>
+        <button class="pin-key" onclick="cpPress('0')">0</button>
+        <button class="pin-key" onclick="cpDel()">⌫</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-wrap hidden" id="receipt-view-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-hdr">
+      <div class="modal-title">📷 Receipt</div>
+      <button class="modal-close" onclick="closeReceiptView()">✕</button>
+    </div>
+    <div style="padding:12px 16px 20px">
+      <img id="receipt-view-img" src="" style="width:100%;border-radius:12px;max-height:400px;object-fit:contain">
+    </div>
+  </div>
+</div>
+
+<div class="modal-wrap hidden" id="split-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title">➗ New Split</div>
+      <button class="modal-close" onclick="closeSplitModal()">✕</button>
+    </div>
+    <div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:12px">
+      <div class="fl-group">
+        <div class="fl-lbl">Description</div>
+        <input class="fl-input" type="text" id="sm-desc" placeholder="e.g. Dinner, Trip, Groceries">
+      </div>
+      <div class="fl-group">
+        <div class="fl-lbl">Total Amount (€)</div>
+        <input class="fl-input" type="number" id="sm-amount" placeholder="0.00" inputmode="decimal">
+      </div>
+      <div class="fl-lbl" style="margin-bottom:4px">Split with</div>
+      <div id="sm-people" style="display:flex;flex-direction:column;gap:8px"></div>
+      <button onclick="addSmPerson()" style="width:100%;padding:10px;background:transparent;border:1.5px dashed var(--border2);border-radius:12px;color:var(--muted);font-family:'Outfit',sans-serif;font-size:13px;cursor:pointer">+ Add person</button>
+      <div id="sm-preview" style="display:none;background:var(--lime-bg);border:1px solid var(--lime-border);border-radius:12px;padding:12px 14px">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--lime-text);margin-bottom:8px">Each person owes</div>
+        <div id="sm-preview-rows"></div>
+      </div>
+      <button class="modal-save" onclick="saveSplit()">Save Split</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-wrap" id="goal-modal" onclick="closeGoalModal(event)">
+  <div class="modal">
+    <div class="modal-title">New savings goal</div>
+    <div class="modal-row"><div class="modal-lbl">Goal name</div><input class="fl-input" id="g-name" placeholder="e.g. iPhone 16, Holiday, Car…" autocorrect="off"></div>
+    <div class="modal-row"><div class="modal-lbl">Target amount (€)</div><input class="fl-input" id="g-target" type="number" placeholder="e.g. 500" inputmode="decimal"></div>
+    <div class="modal-row"><div class="modal-lbl">Icon</div><div class="emoji-grid" id="emoji-grid"></div></div>
+    <div class="modal-btn-row">
+      <button class="modal-cancel" onclick="closeGoalModal()">Cancel</button>
+      <button class="modal-save" onclick="saveGoal()">Save goal</button>
+    </div>
+  </div>
+</div>
+
+<div class="edit-modal-wrap" id="edit-modal" onclick="closeEditModal(event)">
+  <div class="modal">
+    <div class="modal-title">Edit expense</div>
+    <div class="modal-row"><div class="modal-lbl">Description</div><input class="fl-input" id="edit-name" placeholder="Expense name" autocorrect="off"></div>
+    <div class="modal-row"><div class="modal-lbl">Amount (€)</div><input class="fl-input" id="edit-amount" type="number" placeholder="0.00" inputmode="decimal"></div>
+    <div class="modal-row">
+      <div class="modal-lbl">Category</div>
+      <div class="cats" style="margin-bottom:0">
+        <div class="cat" id="edit-cat-needs" onclick="editPickCat('needs')"><div class="cat-emoji">🏠</div><div class="cat-name">Needs</div></div>
+        <div class="cat" id="edit-cat-wants" onclick="editPickCat('wants')"><div class="cat-emoji">🎉</div><div class="cat-name">Wants</div></div>
+        <div class="cat" id="edit-cat-savings" onclick="editPickCat('savings')"><div class="cat-emoji">💰</div><div class="cat-name">Savings</div></div>
+      </div>
+    </div>
+    <div class="modal-btn-row" style="margin-top:12px">
+      <button class="modal-cancel" onclick="closeEditModal()">Cancel</button>
+      <button class="modal-save" onclick="saveEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-wrap" id="net-modal" onclick="closeNetModal(event)">
+  <div class="modal">
+    <div class="modal-title">Adjust savings balance</div>
+    <div class="modal-row"><div class="modal-lbl">Current balance (€)</div><input class="fl-input" id="net-input" type="number" placeholder="e.g. 1200" inputmode="decimal"></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5">Enter your total savings balance — bank account, cash, whatever you consider saved. The app will track how it grows each month.</div>
+    <div class="modal-btn-row">
+      <button class="modal-cancel" onclick="closeNetModal()">Cancel</button>
+      <button class="modal-save" onclick="saveNet()">Save</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="confetti-canvas">
+
+<div class="toast" id="toast"></div>
+
+<div class="scanner-tip">Works with any currency or language</div>
+
 <script>
 // ── STATE ─────────────────────────────────────────────────────────────────
 const DEF={salary:0,payday:25,np:50,wp:30,sp:20,key:'',expenses:[],goals:[],recurring:[]};
@@ -1197,7 +1432,7 @@ function goto(id,btn,skipHap){
   btn.classList.add('active');
   movePill(btn);
   if(id==='dash')renderDash();
-  if(id==='goals'){renderGoals();renderRecurringList();}
+  if(id==='goals'){renderGoals();renderRecurringList();renderSplits();}
   if(id==='report'){reportOffset=0;renderReport();}
   if(id==='settings')loadForm();
   // FAB is inside log page — always visible there
@@ -2207,6 +2442,407 @@ function updateSyncStatus(state, msg){
   if(sub) sub.textContent = msg;
 }
 
+
+// ── CHANGE PIN ────────────────────────────────────────────────────────────
+let cpEntry = '';
+let cpStage = 'current'; // 'current' | 'new' | 'confirm'
+let cpNewPin = '';
+
+function startChangePin(){
+  cpEntry = ''; cpStage = 'current'; cpNewPin = '';
+  updateCpDots();
+  document.getElementById('change-pin-msg').textContent = 'Enter your current PIN';
+  document.getElementById('change-pin-modal').classList.remove('hidden');
+}
+
+function closeChangePinModal(){
+  document.getElementById('change-pin-modal').classList.add('hidden');
+  cpEntry = '';
+}
+
+function cpPress(d){
+  if(cpEntry.length >= 6) return;
+  hap('light');
+  cpEntry += d;
+  updateCpDots();
+  if(cpEntry.length === 6) setTimeout(processCp, 120);
+}
+function cpDel(){ cpEntry = cpEntry.slice(0,-1); updateCpDots(); }
+function cpClear(){ cpEntry = ''; updateCpDots(); }
+
+function updateCpDots(){
+  for(let i=0;i<6;i++){
+    const d = document.getElementById('cpd'+i);
+    if(d) d.classList.toggle('filled', i < cpEntry.length);
+  }
+}
+
+async function processCp(){
+  const msg = document.getElementById('change-pin-msg');
+  if(cpStage === 'current'){
+    const stored = localStorage.getItem('mk-pin-hash');
+    const hash = await pinHash(cpEntry);
+    if(hash !== stored){
+      hap('error');
+      cpEntry = '';
+      updateCpDots();
+      msg.textContent = 'Wrong PIN — try again';
+      msg.style.color = 'var(--red)';
+      return;
+    }
+    cpStage = 'new';
+    cpEntry = '';
+    updateCpDots();
+    msg.textContent = 'Enter new PIN';
+    msg.style.color = '';
+    return;
+  }
+  if(cpStage === 'new'){
+    cpNewPin = cpEntry;
+    cpStage = 'confirm';
+    cpEntry = '';
+    updateCpDots();
+    msg.textContent = 'Confirm new PIN';
+    return;
+  }
+  if(cpStage === 'confirm'){
+    if(cpEntry !== cpNewPin){
+      hap('error');
+      cpEntry = ''; cpNewPin = '';
+      cpStage = 'new';
+      updateCpDots();
+      msg.textContent = "PINs don't match — enter new PIN again";
+      msg.style.color = 'var(--red)';
+      return;
+    }
+    const hash = await pinHash(cpEntry);
+    localStorage.setItem('mk-pin-hash', hash);
+    hap('success');
+    closeChangePinModal();
+    toast('PIN updated! 🔐', 'ok');
+  }
+}
+
+// ── RECEIPT PHOTO ATTACH ──────────────────────────────────────────────────
+// Store compressed receipt images keyed by expense ID
+const RECEIPT_STORE = 'mk-receipts';
+
+function getReceiptStore(){
+  try{ return JSON.parse(localStorage.getItem(RECEIPT_STORE)||'{}'); }
+  catch(e){ return {}; }
+}
+
+function saveReceiptForExp(expId, dataUrl){
+  // Compress to max 300px thumbnail before storing
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 300;
+      const scale = Math.min(1, MAX/Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width*scale);
+      c.height = Math.round(img.height*scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const compressed = c.toDataURL('image/jpeg', 0.7);
+      const store = getReceiptStore();
+      store[expId] = compressed;
+      try{
+        localStorage.setItem(RECEIPT_STORE, JSON.stringify(store));
+      } catch(e){
+        toast('Storage full — receipt not saved');
+      }
+      resolve(compressed);
+    };
+    img.src = dataUrl;
+  });
+}
+
+function getReceiptForExp(expId){
+  const store = getReceiptStore();
+  return store[expId] || null;
+}
+
+function deleteReceiptForExp(expId){
+  const store = getReceiptStore();
+  delete store[expId];
+  localStorage.setItem(RECEIPT_STORE, JSON.stringify(store));
+}
+
+function openReceiptView(expId){
+  const img = getReceiptForExp(expId);
+  if(!img) return;
+  document.getElementById('receipt-view-img').src = img;
+  document.getElementById('receipt-view-modal').classList.remove('hidden');
+}
+
+function closeReceiptView(){
+  document.getElementById('receipt-view-modal').classList.add('hidden');
+}
+
+// After successful scan in scanner — offer to attach
+function attachReceiptToLastExp(dataUrl){
+  if(!S.expenses || !S.expenses.length) return;
+  const lastExp = S.expenses[S.expenses.length-1];
+  saveReceiptForExp(lastExp.id, dataUrl).then(() => {
+    toast('Receipt saved to expense 📷', 'ok');
+    renderDash();
+  });
+}
+
+// ── SPLIT EXPENSES ────────────────────────────────────────────────────────
+let splitPeople = []; // [{name:'', amount:0}] for log tab
+let isSplitActive = false;
+
+function toggleSplit(){
+  isSplitActive = !isSplitActive;
+  const sw = document.getElementById('split-sw');
+  const wrap = document.getElementById('split-wrap');
+  if(sw) sw.classList.toggle('on', isSplitActive);
+  if(wrap) wrap.style.display = isSplitActive ? 'block' : 'none';
+  if(isSplitActive && splitPeople.length === 0) addSplitPerson();
+}
+
+function addSplitPerson(){
+  splitPeople.push({name:''});
+  renderSplitPeople();
+}
+
+function renderSplitPeople(){
+  const container = document.getElementById('split-people');
+  if(!container) return;
+  container.innerHTML = splitPeople.map((p,i) => `
+    <div style="display:flex;gap:8px;align-items:center">
+      <input class="fl-input" style="flex:1;margin:0" type="text" placeholder="Person's name"
+        value="${p.name}" oninput="splitPeople[${i}].name=this.value">
+      <button onclick="removeSplitPerson(${i})" style="width:32px;height:32px;background:var(--red-bg);border:1px solid var(--red-border);border-radius:8px;color:var(--red);cursor:pointer;font-size:16px;flex-shrink:0">✕</button>
+    </div>
+  `).join('');
+}
+
+function removeSplitPerson(i){
+  splitPeople.splice(i,1);
+  renderSplitPeople();
+}
+
+function resetSplitState(){
+  isSplitActive = false;
+  splitPeople = [];
+  const sw = document.getElementById('split-sw');
+  const wrap = document.getElementById('split-wrap');
+  if(sw) sw.classList.remove('on');
+  if(wrap) wrap.style.display = 'none';
+  const container = document.getElementById('split-people');
+  if(container) container.innerHTML = '';
+}
+
+// Called after addExp to attach split data
+function attachSplitToExp(expId, amount){
+  const names = splitPeople.filter(p => p.name.trim());
+  if(!names.length) return;
+  const perPerson = amount / (names.length + 1); // +1 for yourself
+  const split = {
+    id: 'sp-' + Date.now(),
+    expenseId: expId,
+    description: document.getElementById('exp-desc')?.value || 'Expense',
+    totalAmount: amount,
+    myShare: perPerson,
+    createdAt: Date.now(),
+    people: names.map(p => ({
+      name: p.name.trim(),
+      amount: perPerson,
+      settled: false,
+      settledAt: null
+    }))
+  };
+  if(!S.splits) S.splits = [];
+  S.splits.push(split);
+  sv();
+  renderSplits();
+}
+
+// ── SPLIT MODAL (standalone new split) ───────────────────────────────────
+let smPeople = [];
+
+function openSplitModal(){
+  smPeople = [{name:''}];
+  renderSmPeople();
+  document.getElementById('sm-desc').value = '';
+  document.getElementById('sm-amount').value = '';
+  document.getElementById('sm-preview').style.display = 'none';
+  document.getElementById('split-modal').classList.remove('hidden');
+}
+
+function closeSplitModal(){
+  document.getElementById('split-modal').classList.add('hidden');
+}
+
+function addSmPerson(){
+  smPeople.push({name:''});
+  renderSmPeople();
+}
+
+function renderSmPeople(){
+  const c = document.getElementById('sm-people');
+  if(!c) return;
+  c.innerHTML = smPeople.map((p,i) => `
+    <div style="display:flex;gap:8px;align-items:center">
+      <input class="fl-input" style="flex:1;margin:0" type="text" placeholder="Name"
+        value="${p.name}" oninput="smPeople[${i}].name=this.value;updateSmPreview()">
+      ${smPeople.length>1 ? `<button onclick="removeSmPerson(${i})" style="width:32px;height:32px;background:var(--red-bg);border:1px solid var(--red-border);border-radius:8px;color:var(--red);cursor:pointer;font-size:16px;flex-shrink:0">✕</button>` : ''}
+    </div>
+  `).join('');
+  updateSmPreview();
+}
+
+function removeSmPerson(i){
+  smPeople.splice(i,1);
+  renderSmPeople();
+}
+
+function updateSmPreview(){
+  const amount = parseFloat(document.getElementById('sm-amount')?.value||0);
+  const names = smPeople.filter(p=>p.name.trim());
+  const preview = document.getElementById('sm-preview');
+  if(!preview) return;
+  if(!amount || !names.length){ preview.style.display='none'; return; }
+  const perPerson = amount / (names.length + 1);
+  preview.style.display = 'block';
+  document.getElementById('sm-preview-rows').innerHTML = names.map(p => `
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+      <span style="font-size:13px;color:var(--lime-text)">${p.name}</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:var(--lime-text)">€${perPerson.toFixed(2)}</span>
+    </div>
+  `).join('');
+}
+
+function saveSplit(){
+  const desc = document.getElementById('sm-desc').value.trim();
+  const amount = parseFloat(document.getElementById('sm-amount').value);
+  const names = smPeople.filter(p=>p.name.trim());
+  if(!desc){ toast('Add a description'); return; }
+  if(!amount || amount<=0){ toast('Add an amount'); return; }
+  if(!names.length){ toast('Add at least one person'); return; }
+  const perPerson = amount / (names.length + 1);
+  const split = {
+    id: 'sp-'+Date.now(),
+    expenseId: null,
+    description: desc,
+    totalAmount: amount,
+    myShare: perPerson,
+    createdAt: Date.now(),
+    people: names.map(p=>({
+      name: p.name.trim(),
+      amount: perPerson,
+      settled: false,
+      settledAt: null
+    }))
+  };
+  if(!S.splits) S.splits=[];
+  S.splits.push(split);
+  sv();
+  closeSplitModal();
+  renderSplits();
+  hap('success');
+  toast('Split added!', 'ok');
+}
+
+// ── RENDER SPLITS ─────────────────────────────────────────────────────────
+function renderSplits(){
+  const list = document.getElementById('splits-list');
+  const empty = document.getElementById('splits-empty');
+  const summary = document.getElementById('splits-summary');
+  const totalEl = document.getElementById('splits-total');
+  if(!list) return;
+
+  const splits = S.splits || [];
+  const activeSplits = splits.filter(s => s.people.some(p=>!p.settled));
+
+  if(!splits.length){
+    list.innerHTML = '';
+    if(empty) empty.style.display = 'block';
+    if(summary) summary.style.display = 'none';
+    return;
+  }
+  if(empty) empty.style.display = 'none';
+
+  // Calculate total owed
+  let totalOwed = 0;
+  splits.forEach(s => s.people.forEach(p => { if(!p.settled) totalOwed += p.amount; }));
+  if(summary) summary.style.display = totalOwed > 0 ? 'block' : 'none';
+  if(totalEl) totalEl.textContent = '€'+totalOwed.toFixed(2);
+
+  // Group by person name
+  const byPerson = {};
+  splits.forEach(s => {
+    s.people.forEach((p,pi) => {
+      if(!byPerson[p.name]) byPerson[p.name] = [];
+      byPerson[p.name].push({...p, splitId:s.id, personIdx:pi, desc:s.description, total:s.totalAmount, createdAt:s.createdAt});
+    });
+  });
+
+  list.innerHTML = Object.entries(byPerson).map(([name, items]) => {
+    const owedTotal = items.filter(i=>!i.settled).reduce((s,i)=>s+i.amount,0);
+    const hasUnsettled = items.some(i=>!i.settled);
+    return `
+    <div class="split-person-card${hasUnsettled?'':' split-history'}">
+      <div class="split-person-hdr">
+        <div>
+          <div class="split-person-name">${name}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${items.length} item${items.length>1?'s':''}</div>
+        </div>
+        <div>
+          ${owedTotal>0?`<div class="split-person-amount">€${owedTotal.toFixed(2)}</div>`:'<div style="font-size:12px;color:#4caf50;font-weight:600">✓ Settled</div>'}
+        </div>
+      </div>
+      <div class="split-items">
+        ${items.map(item => `
+          <div class="split-item">
+            <div>
+              <div class="split-item-desc">${item.desc}</div>
+              <div style="font-size:11px;color:var(--dim)">${new Date(item.createdAt).toLocaleDateString('en-GB')}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="split-item-amt">€${item.amount.toFixed(2)}</span>
+              ${item.settled
+                ? `<span class="split-item-settled">Settled</span>`
+                : `<button class="split-settle-btn" onclick="settleSplit('${item.splitId}',${item.personIdx})">Settle</button>`
+              }
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      ${hasUnsettled ? `<button class="split-settle-all" onclick="settleAllForPerson('${name}')">Settle all from ${name}</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function settleSplit(splitId, personIdx){
+  const split = (S.splits||[]).find(s=>s.id===splitId);
+  if(!split) return;
+  split.people[personIdx].settled = true;
+  split.people[personIdx].settledAt = Date.now();
+  sv();
+  hap('success');
+  renderSplits();
+  toast('Marked as settled ✓', 'ok');
+}
+
+function settleAllForPerson(name){
+  (S.splits||[]).forEach(s => {
+    s.people.forEach(p => {
+      if(p.name===name && !p.settled){
+        p.settled=true;
+        p.settledAt=Date.now();
+      }
+    });
+  });
+  sv();
+  hap('success');
+  renderSplits();
+  toast(`All settled with ${name} ✓`, 'ok');
+}
+
+
 // ── PUSH NOTIFICATIONS ────────────────────────────────────────────────────
 let deviceId = localStorage.getItem('ac-device-id');
 if(!deviceId){ deviceId = 'dev-'+Date.now()+'-'+Math.random().toString(36).slice(2); localStorage.setItem('ac-device-id', deviceId); }
@@ -2406,6 +3042,7 @@ async function analyseReceipt(dataUrl){
     const parsed = JSON.parse(jsonMatch[0]);
     if(!parsed.amount){ showError('No amount found. Make sure the total is visible in the photo.'); return; }
 
+    parsed._imageDataUrl = dataUrl;
     scanResult = parsed;
     spinEl.style.display = 'none';
     document.getElementById('scanner-amt').textContent = fmt(parsed.amount);
@@ -2450,8 +3087,9 @@ function useScan(){
     document.getElementById('exp-desc').value = scanResult.description;
   }
   document.getElementById('add-btn').disabled = !(parseFloat(amt) > 0 && cat);
+  // Store image for potential attachment after logging
+  window._pendingReceiptImage = scanResult._imageDataUrl || null;
   closeScannerModal();
-  // Go to log tab
   goto('log', document.getElementById('tab-log'), true);
   toast('Filled in! Pick a category ↓', 'ok');
   scanResult = null;
@@ -2608,64 +3246,6 @@ window.addEventListener('resize',()=>{
   if(active)movePill(active);
 });
 </script>
-
-
-<!-- SCANNER MODAL -->
-<div class="scanner-modal" id="scanner-modal">
-  <div class="scanner-modal-hdr">
-    <div class="scanner-modal-title">📷 Receipt Scanner</div>
-    <button class="scanner-close" onclick="closeScannerModal()">✕</button>
-  </div>
-  <div class="scanner-body">
-
-    <div class="scanner-drop" id="scanner-drop" onclick="triggerScanFile()">
-      <span class="scanner-drop-icon">📸</span>
-      <div class="scanner-drop-title">Tap to scan a receipt</div>
-      <div class="scanner-drop-sub">Take a photo or choose from your library.<br>Works with receipts, bank screenshots, invoices.</div>
-    </div>
-
-    <div class="scanner-preview-wrap" id="scanner-preview-wrap">
-      <img id="scanner-preview-img" src="" alt="Receipt preview">
-      <button class="scanner-preview-clear" onclick="clearScan()">✕</button>
-    </div>
-
-    <div class="scanner-analysing" id="scanner-analysing">
-      <div class="scanner-analysing-ring"></div>
-      Analysing your image with AI…
-    </div>
-
-    <div class="scanner-result" id="scanner-result">
-      <div class="scanner-result-hdr">
-        <div class="scanner-result-dot"></div>
-        <div class="scanner-result-lbl">Detected</div>
-      </div>
-      <div class="scanner-result-row">
-        <span class="scanner-result-key">Amount</span>
-        <span class="scanner-result-val" id="scanner-amt">—</span>
-      </div>
-      <div class="scanner-result-row">
-        <span class="scanner-result-key">Description</span>
-        <span class="scanner-result-desc" id="scanner-desc">—</span>
-      </div>
-      <button class="scanner-use-btn" onclick="useScan()">Use this in Log ↗</button>
-    </div>
-
-    <div class="scanner-error" id="scanner-error">
-      Could not read the image. Try a clearer photo with better lighting.
-    </div>
-
-    <div class="scanner-tips">
-      <div class="scanner-tips-title">Tips for best results</div>
-      <div class="scanner-tip">Use a receipt, bank app screenshot, or invoice</div>
-      <div class="scanner-tip">Make sure the total amount is clearly visible</div>
-      <div class="scanner-tip">Good lighting, flat surface, no blur</div>
-      <div class="scanner-tip">Works with any currency or language</div>
-    </div>
-
-  </div>
-</div>
-
-<input type="file" id="scan-file" accept="image/*" style="display:none" onchange="handleScanFile(event)">
 
 </body>
 </html>
