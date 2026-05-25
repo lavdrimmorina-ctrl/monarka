@@ -1140,23 +1140,23 @@ html.theme-light .tabs-pill{
 <!-- TAB BAR -->
 <div class="tabs" id="tabs-bar">
   <div class="tabs-pill" id="tabs-pill"></div>
-  <button class="tab active" id="tab-dash" onclick="goto('dash',this)">
+  <button class="tab active" id="tab-dash" data-tab="dash">
     <div class="tab-icon"><svg fill="none" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
     <span class="tab-lbl">Home</span>
   </button>
-  <button class="tab" id="tab-log" onclick="goto('log',this)">
+  <button class="tab" id="tab-log" data-tab="log">
     <div class="tab-icon"><svg fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
     <span class="tab-lbl">Log</span>
   </button>
-  <button class="tab" id="tab-goals" onclick="goto('goals',this)">
+  <button class="tab" id="tab-goals" data-tab="goals">
     <div class="tab-icon"><svg fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="21"/><line x1="3" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="21" y2="12"/></svg></div>
     <span class="tab-lbl">Goals</span>
   </button>
-  <button class="tab" id="tab-report" onclick="goto('report',this)">
+  <button class="tab" id="tab-report" data-tab="report">
     <div class="tab-icon"><svg fill="none" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
     <span class="tab-lbl">Report</span>
   </button>
-  <button class="tab" id="tab-settings" onclick="goto('settings',this)">
+  <button class="tab" id="tab-settings" data-tab="settings">
     <div class="tab-icon"><svg fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
     <span class="tab-lbl">Settings</span>
   </button>
@@ -1620,14 +1620,6 @@ function renderDash(){
         </div>
       </div>
     </div>`).join('');
-
-  // Receipt thumbnail click handlers
-  document.getElementById('recent-list').querySelectorAll('[data-expid]').forEach(img=>{
-    img.addEventListener('click', function(e){
-      e.stopPropagation();
-      openReceiptView(this.dataset.expid);
-    });
-  });
 
   // Swipe to delete
   filtered.forEach(e=>initSwipe(e.id));
@@ -3141,17 +3133,13 @@ async function sendOverspendPush(msg){
 // ── RECEIPT SCANNER ───────────────────────────────────────────────────────
 let scanResult = null;
 let cameraStream = null;
-let cameraFacing = 'environment';
-let overlayAnimId = null;
-let overlayFrame = 0;
+let cameraFacing = 'environment'; // back camera by default
 
 function openScannerModal(){
   hap('light');
   scanResult = null;
   clearScan();
   document.getElementById('scanner-modal').classList.add('open');
-  // Auto-start camera after brief delay
-  setTimeout(() => startLiveCamera(), 400);
 }
 
 function closeScannerModal(){
@@ -3160,15 +3148,16 @@ function closeScannerModal(){
   document.getElementById('scanner-modal').classList.remove('open');
 }
 
-// ── LIVE CAMERA ────────────────────────────────────────────────────────────
+// ── LIVE CAMERA ───────────────────────────────────────────────────────────
 async function startLiveCamera(){
+  const wrap = document.getElementById('scanner-camera-wrap');
+  const uploadWrap = document.getElementById('scanner-upload-wrap');
+  const camBtn = document.getElementById('scanner-cam-btn');
+
   try {
+    // Request camera permission
     cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: cameraFacing },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
-      },
+      video: { facingMode: cameraFacing, width:{ideal:1920}, height:{ideal:1080} },
       audio: false
     });
 
@@ -3176,77 +3165,76 @@ async function startLiveCamera(){
     video.srcObject = cameraStream;
     await video.play();
 
-    document.getElementById('scanner-camera-wrap').style.display = 'block';
-    document.getElementById('scanner-upload-wrap').style.display = 'none';
-    document.getElementById('scanner-cam-btn').style.display = 'none';
+    wrap.style.display = 'block';
+    uploadWrap.style.display = 'none';
+    camBtn.style.display = 'none';
 
-    // Start overlay animation
-    overlayFrame = 0;
-    drawScanOverlay();
+    // Start overlay animation (document detection simulation)
+    requestAnimationFrame(drawOverlay);
 
   } catch(err) {
-    console.log('Camera error:', err.name);
-    // Fall back to file picker silently
-    document.getElementById('scanner-camera-wrap').style.display = 'none';
-    document.getElementById('scanner-upload-wrap').style.display = 'block';
-    document.getElementById('scanner-cam-btn').style.display = 'none';
+    if(err.name === 'NotAllowedError'){
+      toast('Camera permission denied — use upload instead');
+    } else {
+      toast('Camera unavailable — use upload');
+    }
   }
 }
 
 function stopCamera(){
-  if(overlayAnimId){ cancelAnimationFrame(overlayAnimId); overlayAnimId = null; }
-  if(cameraStream){ cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+  if(cameraStream){
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
   const video = document.getElementById('scanner-video');
   if(video) video.srcObject = null;
-  document.getElementById('scanner-camera-wrap').style.display = 'none';
-  document.getElementById('scanner-upload-wrap').style.display = 'block';
+  const wrap = document.getElementById('scanner-camera-wrap');
+  if(wrap) wrap.style.display = 'none';
+  const uploadWrap = document.getElementById('scanner-upload-wrap');
+  if(uploadWrap) uploadWrap.style.display = 'block';
+  const camBtn = document.getElementById('scanner-cam-btn');
+  if(camBtn) camBtn.style.display = 'flex';
 }
 
-function switchCamera(){
+function switchCameraSource(){
   cameraFacing = cameraFacing === 'environment' ? 'user' : 'environment';
   stopCamera();
-  setTimeout(() => startLiveCamera(), 200);
+  startLiveCamera();
 }
 
-// ── DOCUMENT SCANNER OVERLAY ───────────────────────────────────────────────
-// Draws iOS-Notes-style corner brackets + scanning line
-function drawScanOverlay(){
+// ── DOCUMENT DETECTION OVERLAY (animated scanning guide) ─────────────────
+let overlayFrame = 0;
+function drawOverlay(){
   const modal = document.getElementById('scanner-modal');
-  if(!modal || !modal.classList.contains('open') || !cameraStream){
-    overlayAnimId = null; return;
-  }
+  if(!modal.classList.contains('open') || !cameraStream) return;
 
   const canvas = document.getElementById('scanner-overlay');
   const video = document.getElementById('scanner-video');
-  if(!canvas || !video || !video.videoWidth){ 
-    overlayAnimId = requestAnimationFrame(drawScanOverlay); return; 
-  }
+  if(!canvas || !video) return;
 
-  const w = canvas.offsetWidth;
-  const h = canvas.offsetHeight;
-  canvas.width = w;
-  canvas.height = h;
-
+  canvas.width = video.offsetWidth;
+  canvas.height = video.offsetHeight;
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, w, h);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Semi-transparent overlay outside the scan zone
-  const pad = 20;
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.fillRect(0, 0, w, h);
-  // Clear the scan zone
-  ctx.clearRect(pad, pad, w - pad*2, h - pad*2);
+  // Draw corner brackets like iOS document scanner
+  const w = canvas.width, h = canvas.height;
+  const pad = 24, len = 32, r = 6;
+  const gold = 'rgba(201,168,76,0.9)';
+  const pulse = 0.7 + 0.3 * Math.sin(overlayFrame * 0.05);
 
-  // Corner brackets
-  const pulse = 0.75 + 0.25 * Math.sin(overlayFrame * 0.06);
-  const len = 28;
-  const thick = 3;
   ctx.strokeStyle = `rgba(201,168,76,${pulse})`;
-  ctx.lineWidth = thick;
+  ctx.lineWidth = 3;
   ctx.lineCap = 'round';
 
-  // Draw 4 corner L-shapes
-  [[pad,pad,1,1],[w-pad,pad,-1,1],[pad,h-pad,1,-1],[w-pad,h-pad,-1,-1]].forEach(([x,y,dx,dy])=>{
+  // Four corner brackets
+  const corners = [
+    [pad, pad, 1, 1],
+    [w-pad, pad, -1, 1],
+    [pad, h-pad, 1, -1],
+    [w-pad, h-pad, -1, -1]
+  ];
+  corners.forEach(([x, y, dx, dy]) => {
     ctx.beginPath();
     ctx.moveTo(x + dx*len, y);
     ctx.lineTo(x, y);
@@ -3254,37 +3242,37 @@ function drawScanOverlay(){
     ctx.stroke();
   });
 
-  // Scanning line that moves top to bottom
-  const scanPos = pad + ((h - pad*2) * ((overlayFrame % 90) / 90));
-  const grad = ctx.createLinearGradient(pad, 0, w-pad, 0);
-  grad.addColorStop(0, 'transparent');
-  grad.addColorStop(0.5, `rgba(201,168,76,${pulse * 0.7})`);
-  grad.addColorStop(1, 'transparent');
-  ctx.strokeStyle = grad;
-  ctx.lineWidth = 1.5;
+  // Scanning line
+  const scanY = pad + ((h - pad*2) * ((overlayFrame % 120) / 120));
+  const gradient = ctx.createLinearGradient(pad, scanY, w-pad, scanY);
+  gradient.addColorStop(0, 'transparent');
+  gradient.addColorStop(0.5, `rgba(201,168,76,${pulse * 0.6})`);
+  gradient.addColorStop(1, 'transparent');
+  ctx.strokeStyle = gradient;
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(pad, scanPos);
-  ctx.lineTo(w - pad, scanPos);
+  ctx.moveTo(pad, scanY);
+  ctx.lineTo(w-pad, scanY);
   ctx.stroke();
 
   overlayFrame++;
-  overlayAnimId = requestAnimationFrame(drawScanOverlay);
+  requestAnimationFrame(drawOverlay);
 }
 
-// ── CAPTURE ────────────────────────────────────────────────────────────────
+// ── CAPTURE from live camera ──────────────────────────────────────────────
 function captureFromCamera(){
   const video = document.getElementById('scanner-video');
   if(!video || !cameraStream) return;
+
   hap('medium');
 
   // Flash effect
-  const wrap = document.getElementById('scanner-camera-wrap');
   const flash = document.createElement('div');
-  flash.style.cssText = 'position:absolute;inset:0;background:#fff;border-radius:16px;opacity:0.85;pointer-events:none;transition:opacity 0.25s';
-  wrap.style.position = 'relative';
-  wrap.appendChild(flash);
-  setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.remove(), 250); }, 50);
+  flash.style.cssText = 'position:absolute;inset:0;background:#fff;border-radius:16px;opacity:0.8;pointer-events:none;transition:opacity 0.3s';
+  document.getElementById('scanner-camera-wrap').appendChild(flash);
+  setTimeout(() => flash.remove(), 300);
 
+  // Capture frame to canvas
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
@@ -3295,9 +3283,12 @@ function captureFromCamera(){
   processCapture(dataUrl);
 }
 
+// ── PROCESS CAPTURE (from camera or file) ─────────────────────────────────
 function processCapture(dataUrl){
-  document.getElementById('scanner-preview-img').src = dataUrl;
-  document.getElementById('scanner-preview-wrap').style.display = 'block';
+  const preview = document.getElementById('scanner-preview-img');
+  const wrap = document.getElementById('scanner-preview-wrap');
+  preview.src = dataUrl;
+  wrap.style.display = 'block';
   document.getElementById('scanner-drop').style.display = 'none';
   document.getElementById('scanner-cam-btn').style.display = 'none';
   document.getElementById('scanner-result').style.display = 'none';
@@ -3312,8 +3303,14 @@ function triggerScanFile(){
 
 function clearScan(){
   scanResult = null;
-  const ids = ['scanner-preview-wrap','scanner-result','scanner-error','scanner-analysing'];
-  ids.forEach(id => { const el=document.getElementById(id); if(el) el.style.display='none'; });
+  const wrap = document.getElementById('scanner-preview-wrap');
+  if(wrap) wrap.style.display = 'none';
+  const result = document.getElementById('scanner-result');
+  if(result) result.style.display = 'none';
+  const err = document.getElementById('scanner-error');
+  if(err) err.style.display = 'none';
+  const analysing = document.getElementById('scanner-analysing');
+  if(analysing) analysing.style.display = 'none';
   const drop = document.getElementById('scanner-drop');
   if(drop) drop.style.display = 'block';
   const camBtn = document.getElementById('scanner-cam-btn');
@@ -3329,68 +3326,7 @@ function handleScanFile(e){
   e.target.value = '';
 }
 
-async function analyseReceipt(dataUrl){
-  const errEl = document.getElementById('scanner-error');
-  const spinEl = document.getElementById('scanner-analysing');
-  function showError(msg){ if(spinEl)spinEl.style.display='none'; if(errEl){errEl.style.display='block';errEl.textContent=msg;} }
 
-  if(!S.key){ showError('Add your Groq or Gemini API key in Settings first.'); return; }
-
-  const resized = await resizeImage(dataUrl, 1024);
-  const mimeType = dataUrl.split(';')[0].split(':')[1];
-  const resizedBase64 = resized.split(',')[1];
-  const prompt = 'Look at this receipt image. Find the TOTAL amount paid. Reply ONLY with JSON: {"amount": 16.50, "description": "Shop Name"} — no extra text.';
-
-  try {
-    let text = '';
-    if(S.key.startsWith('gsk_')){
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+S.key},
-        body:JSON.stringify({model:'meta-llama/llama-4-scout-17b-16e-instruct',messages:[{role:'user',content:[{type:'image_url',image_url:{url:resized}},{type:'text',text:prompt}]}],max_tokens:150,temperature:0})
-      });
-      const d = await res.json();
-      if(d.error){ showError('Groq: '+d.error.message); return; }
-      text = d.choices?.[0]?.message?.content || '';
-    } else {
-      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+S.key,{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({contents:[{parts:[{inline_data:{mime_type:mimeType,data:resizedBase64}},{text:prompt}]}],generationConfig:{maxOutputTokens:150,temperature:0}})
-      });
-      const d = await res.json();
-      if(d.error){ showError('Gemini: '+d.error.message); return; }
-      text = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    }
-
-    const match = text.match(/\{[\s\S]*?\}/);
-    if(!match){ showError('Could not find an amount. Try a clearer photo.'); return; }
-    const parsed = JSON.parse(match[0]);
-    if(!parsed.amount){ showError('No amount found. Make sure the total is visible.'); return; }
-
-    parsed._imageDataUrl = dataUrl;
-    scanResult = parsed;
-    if(spinEl) spinEl.style.display = 'none';
-    document.getElementById('scanner-amt').textContent = '\u20ac'+parseFloat(parsed.amount).toFixed(2);
-    document.getElementById('scanner-desc').textContent = parsed.description || 'Expense';
-    document.getElementById('scanner-result').style.display = 'block';
-    hap('success');
-  } catch(err){ showError('Error: '+err.message); }
-}
-
-function resizeImage(dataUrl, maxSize){
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => {
-      const scale = Math.min(1, maxSize/Math.max(img.width,img.height));
-      const c = document.createElement('canvas');
-      c.width = Math.round(img.width*scale);
-      c.height = Math.round(img.height*scale);
-      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
-      resolve(c.toDataURL('image/jpeg',0.85));
-    };
-    img.src = dataUrl;
-  });
-}
 
 function useScan(){
   if(!scanResult) return;
@@ -3399,17 +3335,250 @@ function useScan(){
     const a = parseFloat(scanResult.amount);
     if(a > 0){
       amt = String(a);
-      const numEl = document.getElementById('log-num');
-      if(numEl){ numEl.textContent = amt; numEl.className = 'log-num lit'; }
+      document.getElementById('log-num').textContent = amt;
+      document.getElementById('log-num').className = 'log-num lit';
     }
   }
   if(scanResult.description){
-    const descEl = document.getElementById('exp-desc');
-    if(descEl) descEl.value = scanResult.description;
+    document.getElementById('exp-desc').value = scanResult.description;
   }
+  document.getElementById('add-btn').disabled = !(parseFloat(amt) > 0 && cat);
+  // Store image for potential attachment after logging
   window._pendingReceiptImage = scanResult._imageDataUrl || null;
   closeScannerModal();
   goto('log', document.getElementById('tab-log'), true);
-  toast('Filled in! Pick a category \u2193', 'ok');
+  toast('Filled in! Pick a category ↓', 'ok');
   scanResult = null;
 }
+
+
+// ── THEME MANAGEMENT ──────────────────────────────────────────────────────
+function setTheme(mode){
+  S.theme = mode;
+  sv();
+  applyTheme(mode);
+  updateThemeBtns(mode);
+  hap('light');
+  toast('Theme updated', 'ok');
+}
+
+function applyTheme(mode){
+  const root = document.documentElement;
+  // Remove all theme classes
+  root.classList.remove('theme-dark','theme-light','theme-system');
+  root.classList.add('theme-' + mode);
+
+  // Determine if we're actually in light mode
+  const isLight = mode === 'light' ||
+    (mode === 'system' && window.matchMedia('(prefers-color-scheme:light)').matches);
+
+  // Force body background immediately
+  document.body.style.background = isLight ? '#f0f2f5' : '#000000';
+
+  // Update tab bar
+  const tabs = document.getElementById('tabs-bar');
+  if(tabs){
+    tabs.style.background = isLight
+      ? 'rgba(240,242,245,0.92)'
+      : 'rgba(0,0,0,0.85)';
+    tabs.style.borderColor = isLight
+      ? 'rgba(184,146,42,0.25)'
+      : 'rgba(201,168,76,0.2)';
+  }
+
+  // Update tab bar pill
+  const pill = document.getElementById('tabs-pill');
+  if(pill){
+    pill.style.background = isLight
+      ? 'rgba(184,146,42,0.15)'
+      : 'rgba(201,168,76,0.18)';
+    pill.style.borderColor = isLight
+      ? 'rgba(184,146,42,0.4)'
+      : 'rgba(201,168,76,0.35)';
+  }
+
+  // Update header
+  const hdr = document.querySelector('.hdr');
+  if(hdr) hdr.style.background = isLight ? '#f0f2f5' : '#000000';
+}
+
+function updateThemeBtns(mode){
+  ['dark','light','system'].forEach(m => {
+    const btn = document.getElementById('theme-' + m);
+    if(btn) btn.className = 'theme-opt' + (m === mode ? ' active' : '');
+  });
+}
+
+// ── SETTINGS ─────────────────────────────────────────────────────────────
+function loadForm(){
+  document.getElementById('s-sal').value=S.salary||'';
+  document.getElementById('s-pay').value=S.payday||25;
+  document.getElementById('s-np').value=S.np||50;
+  document.getElementById('s-wp').value=S.wp||30;
+  document.getElementById('s-sp').value=S.sp||20;
+  document.getElementById('s-key').value=S.key||'';
+  updateThemeBtns(S.theme||'dark');
+  if(lastSyncTs) updateSyncStatus('synced','Last saved '+new Date(lastSyncTs).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
+  document.getElementById('s-worker').value=S.workerUrl||'';
+  updateNotifBtn();
+}
+function saveSettings(){
+  S.salary=parseFloat(document.getElementById('s-sal').value)||0;
+  S.payday=parseInt(document.getElementById('s-pay').value)||25;
+  S.np=parseFloat(document.getElementById('s-np').value)||50;
+  S.wp=parseFloat(document.getElementById('s-wp').value)||30;
+  S.sp=parseFloat(document.getElementById('s-sp').value)||20;
+  S.key=document.getElementById('s-key').value.trim();
+  S.workerUrl=document.getElementById('s-worker').value.trim().replace(/\/$/,'');
+  sv();hap('success');toast('Saved!','ok');
+}
+function clearMonth(){
+  if(!confirm('Clear this month?'))return;
+  S.expenses=(S.expenses||[]).filter(e=>e.m!==mk());
+  sv();toast('Cleared');
+}
+function clearAll(){
+  if(!confirm('Delete ALL data?'))return;
+  S.expenses=[];S.goals=[];S.recurring=[];sv();toast('Cleared');
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────
+function toast(msg,type=''){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast'+(type?' '+type:'');
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2000);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+
+
+ld();
+autoLogRecurring();
+renderDash();
+document.getElementById('hdr-date').textContent=mo();
+// Wire up onboarding buttons
+// Wire up tab navigation via event listeners (more reliable than onclick)
+document.querySelectorAll('[data-tab]').forEach(btn => {
+  btn.addEventListener('click', function(){ goto(this.dataset.tab, this); });
+});
+document.getElementById('ob-btn').addEventListener('click', obNext);
+updateNotifBtn();
+document.getElementById('ob-skip').addEventListener('click', obFinish);
+// Apply saved theme on load
+const savedTheme = S.theme || 'dark';
+applyTheme(savedTheme);
+updateThemeBtns(savedTheme);
+// Show onboarding on fresh install, lock screen if PIN exists
+const hasPinSetup = !!localStorage.getItem('mk-pin-hash');
+const shouldOnboard = !S.onboarded && !S.salary;
+
+if(shouldOnboard){
+  // Fresh install — show onboarding, no lock
+  document.getElementById('onboard').classList.remove('hidden');
+} else if(hasPinSetup){
+  // Returning user with PIN — show lock
+  document.getElementById('onboard').classList.add('hidden');
+  showLockScreen();
+} else {
+  // Has data but no PIN — show dashboard, prompt PIN setup
+  document.getElementById('onboard').classList.add('hidden');
+  if(S.workerUrl) cloudLoad();
+  setTimeout(() => showLockScreen(), 500); // prompt PIN setup
+}
+// Re-apply when system theme changes (for system mode)
+window.matchMedia('(prefers-color-scheme:light)').addEventListener('change', () => {
+  if((S.theme || 'dark') === 'system') applyTheme('system');
+});
+
+// Show onboarding on first launch
+
+// Init pill on first active tab
+requestAnimationFrame(()=>{
+  const active=document.querySelector('.tab.active');
+  if(active)movePill(active);
+});
+window.addEventListener('resize',()=>{
+  const active=document.querySelector('.tab.active');
+  if(active)movePill(active);
+});
+</script>
+
+</body>
+</html><!-- SCANNER MODAL -->
+<div class="scanner-modal" id="scanner-modal">
+  <div class="scanner-modal-hdr">
+    <div class="scanner-modal-title">📷 Receipt Scanner</div>
+    <button class="scanner-close" onclick="closeScannerModal()">✕</button>
+  </div>
+  <div class="scanner-body">
+
+    <!-- LIVE CAMERA VIEW -->
+    <div id="scanner-camera-wrap" style="display:none;position:relative;margin-bottom:16px">
+      <video id="scanner-video" autoplay playsinline muted
+        style="width:100%;border-radius:16px;max-height:320px;object-fit:cover;background:#000;display:block"></video>
+      <!-- Document corner overlay -->
+      <canvas id="scanner-overlay" style="position:absolute;inset:0;width:100%;height:100%;border-radius:16px;pointer-events:none"></canvas>
+      <!-- Capture button -->
+      <div style="position:absolute;bottom:12px;left:0;right:0;display:flex;justify-content:center;gap:16px">
+        <button onclick="captureFromCamera()" style="width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,0.95);border:3px solid rgba(201,168,76,0.6);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 16px rgba(0,0,0,0.3)">📸</button>
+      </div>
+      <div style="position:absolute;top:12px;right:12px">
+        <button onclick="switchCameraSource()" style="padding:6px 12px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);border-radius:20px;color:#fff;font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif">Flip</button>
+      </div>
+    </div>
+
+    <!-- UPLOAD FALLBACK (shown when camera unavailable) -->
+    <div id="scanner-upload-wrap">
+      <div class="scanner-drop" id="scanner-drop" onclick="triggerScanFile()">
+        <span class="scanner-drop-icon">📸</span>
+        <div class="scanner-drop-title">Tap to scan a receipt</div>
+        <div class="scanner-drop-sub">Take a photo or choose from your library.<br>Works with receipts, bank screenshots, invoices.</div>
+      </div>
+    </div>
+
+    <!-- Camera toggle button -->
+    <button id="scanner-cam-btn" onclick="startLiveCamera()" style="width:100%;padding:11px;background:var(--surface);border:1px solid var(--border);border-radius:14px;color:var(--text);font-family:'Outfit',sans-serif;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:8px">
+      <span>📷</span> Use live camera instead
+    </button>
+
+    <div class="scanner-preview-wrap" id="scanner-preview-wrap">
+      <img id="scanner-preview-img" src="" alt="Receipt preview">
+      <button class="scanner-preview-clear" onclick="clearScan()">✕</button>
+    </div>
+
+    <div class="scanner-analysing" id="scanner-analysing">
+      <div class="scanner-analysing-ring"></div>
+      Analysing your receipt with AI…
+    </div>
+
+    <div class="scanner-result" id="scanner-result">
+      <div class="scanner-result-hdr">
+        <div class="scanner-result-dot"></div>
+        <div class="scanner-result-lbl">Detected</div>
+      </div>
+      <div class="scanner-result-row">
+        <span class="scanner-result-key">Amount</span>
+        <span class="scanner-result-val" id="scanner-amt">—</span>
+      </div>
+      <div class="scanner-result-row">
+        <span class="scanner-result-key">Description</span>
+        <span class="scanner-result-desc" id="scanner-desc">—</span>
+      </div>
+      <button class="scanner-use-btn" onclick="useScan()">Use this in Log ↗</button>
+    </div>
+
+    <div class="scanner-error" id="scanner-error"></div>
+
+    <div class="scanner-tips">
+      <div class="scanner-tips-title">Tips for best results</div>
+      <div class="scanner-tip">Flat surface, good lighting, no shadows</div>
+      <div class="scanner-tip">Make sure the total amount is clearly visible</div>
+      <div class="scanner-tip">Works with receipts, invoices, bank screenshots</div>
+    </div>
+
+  </div>
+</div>
