@@ -736,7 +736,7 @@ html.theme-light .tabs-pill{
 
 <!-- UPDATE BANNER -->
 <div class="update-banner" id="update-banner">
-  <div class="update-banner-text">🆕 New version available!</div>
+  <div class="update-banner-text">🆕 Update available</div>
   <button class="update-banner-btn" onclick="reloadApp()">Update</button>
 </div>
 
@@ -2605,33 +2605,36 @@ function toast(msg,type=''){
 
 // ── INIT ──────────────────────────────────────────────────────────────────
 
-// ── AUTO UPDATE LISTENER ──────────────────────────────────────────────────
-let updateReady = false;
+// ── UPDATE CHECK — version.json polling ──────────────────────────────────
+// Simple, reliable: fetch version.json (never cached), compare with stored.
+// No SW messaging, no controllerchange, no race conditions.
 
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.ready.then(reg => {
-    // Only show banner if there's a NEW waiting SW
-    // AND we didn't just reload to apply an update
-    const justUpdated = sessionStorage.getItem('mk-just-updated');
-    if(justUpdated){
-      sessionStorage.removeItem('mk-just-updated');
-      // We just applied an update — no banner
-    } else if(reg.waiting){
-      updateReady = true;
-      showUpdateBanner();
+const STORED_VERSION_KEY = 'mk-version';
+
+async function checkForUpdate(){
+  try {
+    const res = await fetch('version.json?t=' + Date.now(), {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' }
+    });
+    if(!res.ok) return;
+    const data = await res.json();
+    const remoteVersion = data.version;
+    const localVersion = localStorage.getItem(STORED_VERSION_KEY);
+
+    if(!localVersion){
+      // First run — store version, no banner
+      localStorage.setItem(STORED_VERSION_KEY, remoteVersion);
+      return;
     }
 
-    // New SW found while app is open
-    reg.addEventListener('updatefound', () => {
-      const newWorker = reg.installing;
-      newWorker.addEventListener('statechange', () => {
-        if(newWorker.state === 'installed' && navigator.serviceWorker.controller){
-          updateReady = true;
-          showUpdateBanner();
-        }
-      });
-    });
-  });
+    if(remoteVersion !== localVersion){
+      // New version available — show banner
+      showUpdateBanner();
+    }
+  } catch(e) {
+    // Offline or fetch failed — silently ignore
+  }
 }
 
 function showUpdateBanner(){
@@ -2645,28 +2648,24 @@ function hideUpdateBanner(){
 }
 
 function reloadApp(){
-  // Mark that we're reloading to apply an update
-  sessionStorage.setItem('mk-just-updated', '1');
+  // Clear cached version so it gets re-stored fresh after reload
+  localStorage.removeItem(STORED_VERSION_KEY);
+  // Unregister SW to force fresh load, then reload
   if('serviceWorker' in navigator){
-    navigator.serviceWorker.ready.then(reg => {
-      if(reg.waiting){
-        // Listen for controller change then reload
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          window.location.reload();
-        }, { once: true });
-        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-        // Safety fallback
-        setTimeout(() => window.location.reload(), 1500);
-      } else {
-        window.location.reload();
-      }
-    }).catch(() => window.location.reload());
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      Promise.all(regs.map(r => r.unregister())).then(() => {
+        window.location.reload(true);
+      });
+    });
   } else {
-    window.location.reload();
+    window.location.reload(true);
   }
 }
 
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+// Check for update on every launch (after 2 second delay to not block init)
+setTimeout(checkForUpdate, 2000);
 
 
 ld();
