@@ -97,15 +97,9 @@ self.addEventListener('notificationclick', e => {
   );
 });
 
-// ── AUTO-UPDATE CHECK ─────────────────────────────────────────────────────
-// Tell all open tabs to reload when a new version activates
-self.addEventListener('activate', e => {
-  e.waitUntil(
-    self.clients.matchAll({ type: 'window' }).then(clients => {
-      clients.forEach(client => client.postMessage({ type: 'SW_UPDATED', version: VERSION }));
-    })
-  );
-});
+// ── AUTO-UPDATE: no broadcast needed ────────────────────────────────────
+// The app detects updates via reg.waiting and updatefound events directly
+// Broadcasting SW_UPDATED caused banner to re-appear after every reload
 
 self.addEventListener('message', e => {
   if(e.data?.type === 'SKIP_WAITING') self.skipWaiting();
