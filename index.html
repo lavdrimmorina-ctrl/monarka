@@ -731,7 +731,7 @@ html.theme-light .tabs-pill{
 .split-history{opacity:0.5}
 
 /* RECEIPT THUMB */
-.receipt-thumb{width:36px;height:36px;border-radius:8px;object-fit:cover;cursor:pointer;border:1px solid var(--border);flex-shrink:0}
+.receipt-thumb{width:44px;height:44px;border-radius:10px;object-fit:cover;cursor:pointer;border:2px solid var(--lime-border);flex-shrink:0;-webkit-tap-highlight-color:rgba(201,168,76,0.2)}
 
 /* TOAST */
 .toast{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);left:50%;transform:translateX(-50%) translateY(14px);background:var(--surface3);border:1px solid var(--border2);color:var(--text);padding:10px 20px;border-radius:50px;font-size:13px;font-weight:500;opacity:0;transition:all .28s cubic-bezier(.34,1.56,.64,1);pointer-events:none;white-space:nowrap;z-index:9999;letter-spacing:0.04em}
@@ -1620,6 +1620,15 @@ function renderDash(){
         </div>
       </div>
     </div>`).join('');
+
+  // Receipt thumbnail — tap to open full view
+  document.getElementById('recent-list').querySelectorAll('[data-expid]').forEach(function(img){
+    img.addEventListener('click', function(e){
+      e.stopPropagation();
+      e.preventDefault();
+      openReceiptView(this.getAttribute('data-expid'));
+    });
+  });
 
   // Swipe to delete
   filtered.forEach(e=>initSwipe(e.id));
@@ -3506,6 +3515,174 @@ window.addEventListener('resize',()=>{
   if(active)movePill(active);
 });
 </script>
+
+
+</html><!-- SCANNER MODAL -->
+<div class="scanner-modal" id="scanner-modal">
+  <div class="scanner-modal-hdr">
+    <div class="scanner-modal-title">📷 Receipt Scanner</div>
+    <button class="scanner-close" onclick="closeScannerModal()">✕</button>
+  </div>
+  <div class="scanner-body">
+
+    <!-- LIVE CAMERA VIEW -->
+    <div id="scanner-camera-wrap" style="display:none;position:relative;margin-bottom:16px">
+      <video id="scanner-video" autoplay playsinline muted
+        style="width:100%;border-radius:16px;max-height:320px;object-fit:cover;background:#000;display:block"></video>
+      <!-- Document corner overlay -->
+      <canvas id="scanner-overlay" style="position:absolute;inset:0;width:100%;height:100%;border-radius:16px;pointer-events:none"></canvas>
+      <!-- Capture button -->
+      <div style="position:absolute;bottom:12px;left:0;right:0;display:flex;justify-content:center;gap:16px">
+        <button onclick="captureFromCamera()" style="width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,0.95);border:3px solid rgba(201,168,76,0.6);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 16px rgba(0,0,0,0.3)">📸</button>
+      </div>
+      <div style="position:absolute;top:12px;right:12px">
+        <button onclick="switchCameraSource()" style="padding:6px 12px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);border-radius:20px;color:#fff;font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif">Flip</button>
+      </div>
+    </div>
+
+    <!-- UPLOAD FALLBACK (shown when camera unavailable) -->
+    <div id="scanner-upload-wrap">
+      <div class="scanner-drop" id="scanner-drop" onclick="triggerScanFile()">
+        <span class="scanner-drop-icon">📸</span>
+        <div class="scanner-drop-title">Tap to scan a receipt</div>
+        <div class="scanner-drop-sub">Take a photo or choose from your library.<br>Works with receipts, bank screenshots, invoices.</div>
+      </div>
+    </div>
+
+    <!-- Camera toggle button -->
+    <button id="scanner-cam-btn" onclick="startLiveCamera()" style="width:100%;padding:11px;background:var(--surface);border:1px solid var(--border);border-radius:14px;color:var(--text);font-family:'Outfit',sans-serif;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:8px">
+      <span>📷</span> Use live camera instead
+    </button>
+
+    <div class="scanner-preview-wrap" id="scanner-preview-wrap">
+      <img id="scanner-preview-img" src="" alt="Receipt preview">
+      <button class="scanner-preview-clear" onclick="clearScan()">✕</button>
+    </div>
+
+    <div class="scanner-analysing" id="scanner-analysing">
+      <div class="scanner-analysing-ring"></div>
+      Analysing your receipt with AI…
+    </div>
+
+    <div class="scanner-result" id="scanner-result">
+      <div class="scanner-result-hdr">
+        <div class="scanner-result-dot"></div>
+        <div class="scanner-result-lbl">Detected</div>
+      </div>
+      <div class="scanner-result-row">
+        <span class="scanner-result-key">Amount</span>
+        <span class="scanner-result-val" id="scanner-amt">—</span>
+      </div>
+      <div class="scanner-result-row">
+        <span class="scanner-result-key">Description</span>
+        <span class="scanner-result-desc" id="scanner-desc">—</span>
+      </div>
+      <button class="scanner-use-btn" onclick="useScan()">Use this in Log ↗</button>
+    </div>
+
+    <div class="scanner-error" id="scanner-error"></div>
+
+    <div class="scanner-tips">
+      <div class="scanner-tips-title">Tips for best results</div>
+      <div class="scanner-tip">Flat surface, good lighting, no shadows</div>
+      <div class="scanner-tip">Make sure the total amount is clearly visible</div>
+      <div class="scanner-tip">Works with receipts, invoices, bank screenshots</div>
+    </div>
+
+  </div>
+</div><!-- RECEIPT VIEW MODAL -->
+<div class="modal-wrap hidden" id="receipt-view-modal" onclick="closeReceiptView()">
+  <div class="modal" style="max-width:420px" onclick="event.stopPropagation()">
+    <div class="modal-hdr">
+      <div class="modal-title">📷 Receipt</div>
+      <button class="modal-close" onclick="closeReceiptView()">✕</button>
+    </div>
+    <div style="padding:12px 16px 20px;text-align:center">
+      <img id="receipt-view-img" src="" style="width:100%;border-radius:12px;max-height:500px;object-fit:contain;cursor:zoom-in" onclick="this.style.maxHeight=this.style.maxHeight==='none'?'500px':'none'">
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">Tap image to zoom · Tap outside to close</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-wrap hidden" id="split-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title">➗ New Split</div>
+      <button class="modal-close" onclick="closeSplitModal()">✕</button>
+    </div>
+    <div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:12px">
+      <div class="fl-group">
+        <div class="fl-lbl">Description</div>
+        <input class="fl-input" type="text" id="sm-desc" placeholder="e.g. Dinner, Trip, Groceries">
+      </div>
+      <div class="fl-group">
+        <div class="fl-lbl">Total Amount (€)</div>
+        <input class="fl-input" type="number" id="sm-amount" placeholder="0.00" inputmode="decimal">
+      </div>
+      <div class="fl-lbl" style="margin-bottom:4px">Split with</div>
+      <div id="sm-people" style="display:flex;flex-direction:column;gap:8px"></div>
+      <button onclick="addSmPerson()" style="width:100%;padding:10px;background:transparent;border:1.5px dashed var(--border2);border-radius:12px;color:var(--muted);font-family:'Outfit',sans-serif;font-size:13px;cursor:pointer">+ Add person</button>
+      <div id="sm-preview" style="display:none;background:var(--lime-bg);border:1px solid var(--lime-border);border-radius:12px;padding:12px 14px">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--lime-text);margin-bottom:8px">Each person owes</div>
+        <div id="sm-preview-rows"></div>
+      </div>
+      <button class="modal-save" onclick="saveSplit()">Save Split</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-wrap" id="goal-modal" onclick="closeGoalModal(event)">
+  <div class="modal">
+    <div class="modal-title">New savings goal</div>
+    <div class="modal-row"><div class="modal-lbl">Goal name</div><input class="fl-input" id="g-name" placeholder="e.g. iPhone 16, Holiday, Car…" autocorrect="off"></div>
+    <div class="modal-row"><div class="modal-lbl">Target amount (€)</div><input class="fl-input" id="g-target" type="number" placeholder="e.g. 500" inputmode="decimal"></div>
+    <div class="modal-row"><div class="modal-lbl">Icon</div><div class="emoji-grid" id="emoji-grid"></div></div>
+    <div class="modal-btn-row">
+      <button class="modal-cancel" onclick="closeGoalModal()">Cancel</button>
+      <button class="modal-save" onclick="saveGoal()">Save goal</button>
+    </div>
+  </div>
+</div>
+
+<div class="edit-modal-wrap" id="edit-modal" onclick="closeEditModal(event)">
+  <div class="modal">
+    <div class="modal-title">Edit expense</div>
+    <div class="modal-row"><div class="modal-lbl">Description</div><input class="fl-input" id="edit-name" placeholder="Expense name" autocorrect="off"></div>
+    <div class="modal-row"><div class="modal-lbl">Amount (€)</div><input class="fl-input" id="edit-amount" type="number" placeholder="0.00" inputmode="decimal"></div>
+    <div class="modal-row">
+      <div class="modal-lbl">Category</div>
+      <div class="cats" style="margin-bottom:0">
+        <div class="cat" id="edit-cat-needs" onclick="editPickCat('needs')"><div class="cat-emoji">🏠</div><div class="cat-name">Needs</div></div>
+        <div class="cat" id="edit-cat-wants" onclick="editPickCat('wants')"><div class="cat-emoji">🎉</div><div class="cat-name">Wants</div></div>
+        <div class="cat" id="edit-cat-savings" onclick="editPickCat('savings')"><div class="cat-emoji">💰</div><div class="cat-name">Savings</div></div>
+      </div>
+    </div>
+    <div class="modal-btn-row" style="margin-top:12px">
+      <button class="modal-cancel" onclick="closeEditModal()">Cancel</button>
+      <button class="modal-save" onclick="saveEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-wrap" id="net-modal" onclick="closeNetModal(event)">
+  <div class="modal">
+    <div class="modal-title">Adjust savings balance</div>
+    <div class="modal-row"><div class="modal-lbl">Current balance (€)</div><input class="fl-input" id="net-input" type="number" placeholder="e.g. 1200" inputmode="decimal"></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5">Enter your total savings balance — bank account, cash, whatever you consider saved. The app will track how it grows each month.</div>
+    <div class="modal-btn-row">
+      <button class="modal-cancel" onclick="closeNetModal()">Cancel</button>
+      <button class="modal-save" onclick="saveNet()">Save</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="confetti-canvas">
+
+<div class="toast" id="toast"></div>
+
+<div class="scanner-tip">Works with any currency or language</div>
+
+
 
 </body>
 </html><!-- SCANNER MODAL -->
