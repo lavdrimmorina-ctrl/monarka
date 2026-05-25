@@ -2082,37 +2082,39 @@ async function authenticate(){
       const credential = await navigator.credentials.create({
         publicKey: {
           challenge,
-          // Use a unique rp.name but DO NOT set rp.id
-          // Without rp.id it defaults to current hostname naturally
-          // but we avoid conflicts by using a unique user.name
-          rp: { name: 'MonArka — My Chest' },
+          rp: { name: 'MonArka' },
           user: {
             id: userId,
             name: 'monarka@' + deviceId.slice(-8),
             displayName: 'MonArka'
           },
           pubKeyCredParams: [
-            { type: 'public-key', alg: -7 },   // ES256
-            { type: 'public-key', alg: -257 }  // RS256 fallback
+            { type: 'public-key', alg: -7 },
+            { type: 'public-key', alg: -257 }
           ],
           authenticatorSelection: {
             authenticatorAttachment: 'platform',
             userVerification: 'required',
-            residentKey: 'discouraged' // don't create discoverable credential
+            requireResidentKey: false,
+            residentKey: 'discouraged'
           },
-          timeout: 60000
+          // excludeCredentials prevents duplicate registrations
+          excludeCredentials: [],
+          timeout: 60000,
+          // attestation: none prevents any server-side verification prompts
+          attestation: 'none'
         }
       });
 
       localStorage.setItem('monarka-cred-id', bufferToBase64(credential.rawId));
       hap('success');
       hideLockScreen();
-      toast('Face ID enabled!', 'ok');
+      toast('Face ID enabled! 🔐', 'ok');
       if(S.workerUrl) cloudLoad();
 
     } else {
       // ── VERIFY ────────────────────────────────────────────────────────
-      lbl.textContent = 'Tap to authenticate';
+      lbl.textContent = 'Authenticating…';
       const challenge = crypto.getRandomValues(new Uint8Array(32));
 
       const assertion = await navigator.credentials.get({
@@ -2121,10 +2123,11 @@ async function authenticate(){
           allowCredentials: [{
             id: base64ToBuffer(credId),
             type: 'public-key',
-            transports: ['internal']
+            transports: ['internal', 'hybrid']
           }],
           userVerification: 'required',
-          timeout: 60000
+          timeout: 60000,
+          rpId: location.hostname
         }
       });
 
@@ -2606,11 +2609,14 @@ function toast(msg,type=''){
 let updateReady = false;
 
 if('serviceWorker' in navigator){
-  // After reload — SW is already the new one, no banner needed
-  // Only show banner if there's actually a NEW waiting worker
   navigator.serviceWorker.ready.then(reg => {
-    // There's already a waiting worker (user came back after update was queued)
-    if(reg.waiting){
+    // Only show banner if there's a NEW waiting SW
+    // AND we didn't just reload to apply an update
+    const justUpdated = sessionStorage.getItem('mk-just-updated');
+    if(justUpdated){
+      sessionStorage.removeItem('mk-just-updated');
+      // We just applied an update — no banner
+    } else if(reg.waiting){
       updateReady = true;
       showUpdateBanner();
     }
@@ -2619,22 +2625,12 @@ if('serviceWorker' in navigator){
     reg.addEventListener('updatefound', () => {
       const newWorker = reg.installing;
       newWorker.addEventListener('statechange', () => {
-        // Only show banner if installed AND there's an existing controller
-        // (means this is an UPDATE not a fresh install)
         if(newWorker.state === 'installed' && navigator.serviceWorker.controller){
           updateReady = true;
           showUpdateBanner();
         }
       });
     });
-  });
-
-  // Listen for controllerchange — means update was applied, hide banner + reload
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if(updateReady){
-      updateReady = false;
-      window.location.reload();
-    }
   });
 }
 
@@ -2649,18 +2645,24 @@ function hideUpdateBanner(){
 }
 
 function reloadApp(){
+  // Mark that we're reloading to apply an update
+  sessionStorage.setItem('mk-just-updated', '1');
   if('serviceWorker' in navigator){
     navigator.serviceWorker.ready.then(reg => {
       if(reg.waiting){
+        // Listen for controller change then reload
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          window.location.reload();
+        }, { once: true });
         reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-        // Safety fallback — reload after 1s even if controllerchange doesn't fire
-        setTimeout(() => window.location.reload(true), 1000);
+        // Safety fallback
+        setTimeout(() => window.location.reload(), 1500);
       } else {
-        window.location.reload(true);
+        window.location.reload();
       }
-    }).catch(() => window.location.reload(true));
+    }).catch(() => window.location.reload());
   } else {
-    window.location.reload(true);
+    window.location.reload();
   }
 }
 
