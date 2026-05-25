@@ -1,7 +1,9 @@
 // MonArka Service Worker
 // Strategy: network-first for HTML (always get latest), cache-first for assets
 
-const VERSION = 'monarka-v3'; // bump this with each deploy
+// Version is injected automatically at deploy time via GitHub Actions
+// Falls back to timestamp if not injected
+const VERSION = self.__VERSION__ || 'monarka-' + Date.now();
 const ASSETS = ['./manifest.json'];
 
 self.addEventListener('install', e => {
