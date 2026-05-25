@@ -1695,22 +1695,57 @@ function pickFreq(f,btn){
 function addExp(){
   const a=parseFloat(amt);if(!a||!cat)return;
   hap('success');
+  // Capture desc and split state BEFORE clearing the form
   const desc=document.getElementById('exp-desc').value.trim()||'Expense';
+  const expId=Date.now()+1;
+  const doSplit=isSplitActive && splitPeople.filter(p=>p.name.trim()).length>0;
+  const splitSnapshot=[...splitPeople];
+
   if(isRecurring){
     const r={id:Date.now(),a,c:cat,n:desc,freq:recFreq};
     S.recurring=[...(S.recurring||[]),r];
   }
-  S.expenses=[...(S.expenses||[]),{id:Date.now()+1,m:mk(),a,c:cat,n:desc,d:new Date().toISOString()}];
+  S.expenses=[...(S.expenses||[]),{id:expId,m:mk(),a,c:cat,n:desc,d:new Date().toISOString()}];
+
+  // Attach split BEFORE sv() so it saves together
+  if(doSplit){
+    const people=splitSnapshot.filter(p=>p.name.trim());
+    const perPerson=a/(people.length+1);
+    const split={
+      id:'sp-'+Date.now(),
+      expenseId:expId,
+      description:desc,
+      totalAmount:a,
+      myShare:perPerson,
+      createdAt:Date.now(),
+      people:people.map(p=>({name:p.name.trim(),amount:perPerson,settled:false,settledAt:null}))
+    };
+    if(!S.splits)S.splits=[];
+    S.splits.push(split);
+  }
+
+  // Attach pending receipt from scanner
+  if(window._pendingReceiptImage){
+    saveReceiptForExp(expId, window._pendingReceiptImage);
+    window._pendingReceiptImage=null;
+  }
+
   sv();
+
+  // Reset form
   amt='';cat='';isRecurring=false;recFreq='monthly';
+  isSplitActive=false;splitPeople=[];
   document.getElementById('log-num').textContent='0';
   document.getElementById('log-num').className='log-num';
   document.getElementById('exp-desc').value='';
   document.getElementById('rec-sw').className='toggle-sw';
   document.getElementById('freq-wrap').style.display='none';
+  const sw=document.getElementById('split-sw');if(sw)sw.className='toggle-sw';
+  const sw2=document.getElementById('split-wrap');if(sw2)sw2.style.display='none';
+  const spp=document.getElementById('split-people');if(spp)spp.innerHTML='';
   ['needs','wants','savings'].forEach(x=>document.getElementById('cat-'+x).className='cat');
   document.getElementById('add-btn').disabled=true;
-  toast('Added!','ok');
+  toast(doSplit?'Added with split! ➗':'Added!','ok');
   setTimeout(()=>goto('dash',document.getElementById('tab-dash')),280);
 }
 
