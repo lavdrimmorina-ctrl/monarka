@@ -662,6 +662,46 @@ html.theme-light .tabs-pill{
   color:var(--lime-text);
 }
 
+
+/* LOCK SCREEN */
+.lock-screen{
+  position:fixed;inset:0;z-index:3000;
+  background:#000;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:40px 32px calc(env(safe-area-inset-bottom,0px)+40px);
+  transition:opacity .3s;
+}
+.lock-screen.hidden{display:none}
+.lock-logo{font-size:64px;margin-bottom:12px}
+.lock-app-name{font-size:28px;font-weight:800;color:#fff;letter-spacing:-0.02em;margin-bottom:6px}
+.lock-app-name span{color:#c9a84c}
+.lock-sub{font-size:14px;color:rgba(255,255,255,0.45);margin-bottom:56px;text-align:center;line-height:1.5}
+.lock-btn{
+  width:80px;height:80px;border-radius:50%;
+  background:rgba(201,168,76,0.15);
+  border:2px solid rgba(201,168,76,0.35);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;margin-bottom:16px;
+  transition:transform .2s cubic-bezier(.34,1.56,.64,1),background .2s;
+}
+.lock-btn:active{transform:scale(0.9)}
+.lock-btn svg{width:36px;height:36px;stroke:#c9a84c;stroke-width:1.5;fill:none}
+.lock-btn-lbl{font-size:12px;color:rgba(255,255,255,0.45);letter-spacing:0.08em;text-transform:uppercase;font-weight:600;margin-bottom:40px}
+.lock-error{font-size:13px;color:#ff6b6b;text-align:center;min-height:20px;margin-bottom:16px}
+.lock-skip{font-size:12px;color:rgba(255,255,255,0.25);cursor:pointer;padding:8px;text-decoration:underline}
+
+/* SYNC STATUS */
+.sync-row{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:13px 16px;margin-bottom:8px}
+.sync-info{flex:1}
+.sync-title{font-size:14px;font-weight:500;color:var(--text)}
+.sync-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.sync-btn{padding:7px 14px;background:var(--lime-bg);border:1px solid var(--lime-border);border-radius:10px;color:var(--lime-text);font-family:'Outfit',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;letter-spacing:0.06em;text-transform:uppercase}
+.sync-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-right:8px}
+.sync-dot.synced{background:#4caf50}
+.sync-dot.unsynced{background:#ff6b6b}
+.sync-dot.syncing{background:#c9a84c;animation:pulse 1.5s infinite}
+
 /* TOAST */
 .toast{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);left:50%;transform:translateX(-50%) translateY(14px);background:var(--surface3);border:1px solid var(--border2);color:var(--text);padding:10px 20px;border-radius:50px;font-size:13px;font-weight:500;opacity:0;transition:all .28s cubic-bezier(.34,1.56,.64,1);pointer-events:none;white-space:nowrap;z-index:9999;letter-spacing:0.04em}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -670,6 +710,20 @@ html.theme-light .tabs-pill{
 </style>
 </head>
 <body>
+
+<!-- LOCK SCREEN -->
+<div class="lock-screen hidden" id="lock-screen">
+  <div class="lock-logo">👑</div>
+  <div class="lock-app-name">Mon<span>Arka</span></div>
+  <div class="lock-sub">Your personal finance chest.<br>Authenticate to continue.</div>
+  <div class="lock-btn" id="lock-btn" onclick="authenticate()">
+    <svg viewBox="0 0 24 24"><path d="M12 1C8.676 1 6 3.676 6 7v2H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V10a1 1 0 0 0-1-1h-2V7c0-3.324-2.676-6-6-6zm0 2c2.276 0 4 1.724 4 4v2H8V7c0-2.276 1.724-4 4-4zm0 9a2 2 0 0 1 1 3.732V17a1 1 0 0 1-2 0v-1.268A2 2 0 0 1 12 12z"/></svg>
+  </div>
+  <div class="lock-btn-lbl" id="lock-btn-lbl">Face ID / Touch ID</div>
+  <div class="lock-error" id="lock-error"></div>
+  <div class="lock-skip" onclick="unlockWithoutBiometrics()">Skip for now</div>
+</div>
+
 <!-- ONBOARDING -->
 <div class="onboard" id="onboard">
   <div class="ob-slides-wrap">
@@ -943,6 +997,17 @@ html.theme-light .tabs-pill{
       <div class="fl-group"><div class="fl-lbl">Needs %</div><input class="fl-input" type="number" id="s-np" placeholder="50" inputmode="numeric"></div>
       <div class="fl-group"><div class="fl-lbl">Wants %</div><input class="fl-input" type="number" id="s-wp" placeholder="30" inputmode="numeric"></div>
       <div class="fl-group"><div class="fl-lbl">Savings %</div><input class="fl-input" type="number" id="s-sp" placeholder="20" inputmode="numeric"></div>
+      <div class="set-sect">Cloud sync</div>
+      <div class="sync-row">
+        <div style="display:flex;align-items:center">
+          <div class="sync-dot unsynced" id="sync-dot"></div>
+          <div class="sync-info">
+            <div class="sync-title">Auto backup</div>
+            <div class="sync-sub" id="sync-sub">Not synced yet</div>
+          </div>
+        </div>
+        <button class="sync-btn" onclick="manualSync()">Sync now</button>
+      </div>
       <div class="set-sect">Notifications</div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:8px">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--border)">
@@ -1071,7 +1136,10 @@ let activeFilter='all',reportOffset=0;
 const EMOJIS=['🎯','📱','✈️','🚗','🏠','👟','💻','🎮','📚','🎸','🏋️','🍕','💍','🌴','🎓','🏦','🛍️','🎁'];
 
 function ld(){try{const s=localStorage.getItem('ac5');if(s)S={...DEF,...JSON.parse(s)};}catch(e){}}
-function sv(){localStorage.setItem('ac5',JSON.stringify(S));}
+function sv(){
+  localStorage.setItem('ac5',JSON.stringify(S));
+  scheduleSave(); // auto-sync to cloud after every save
+}
 
 // ── HAPTICS ───────────────────────────────────────────────────────────────
 function hap(t='light'){
@@ -1852,6 +1920,226 @@ function exportCSV(){
 }
 
 
+
+// ── FACE ID / BIOMETRIC AUTH ──────────────────────────────────────────────
+let authPassed = false;
+
+function showLockScreen(){
+  const lock = document.getElementById('lock-screen');
+  if(!lock) return;
+  lock.classList.remove('hidden');
+  // Auto-trigger Face ID after a brief moment
+  setTimeout(() => authenticate(), 600);
+}
+
+function hideLockScreen(){
+  const lock = document.getElementById('lock-screen');
+  if(lock){
+    lock.style.opacity = '0';
+    setTimeout(() => lock.classList.add('hidden'), 300);
+  }
+  authPassed = true;
+}
+
+async function authenticate(){
+  const errEl = document.getElementById('lock-error');
+  const btn = document.getElementById('lock-btn');
+  const lbl = document.getElementById('lock-btn-lbl');
+  errEl.textContent = '';
+
+  // Check if WebAuthn is supported
+  if(!window.PublicKeyCredential){
+    // Not supported — skip auth
+    unlockWithoutBiometrics();
+    return;
+  }
+
+  try {
+    // Check if platform authenticator (Face ID / Touch ID) is available
+    const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    if(!available){
+      lbl.textContent = 'Biometrics unavailable';
+      unlockWithoutBiometrics();
+      return;
+    }
+
+    // If first time — register credential
+    const credId = localStorage.getItem('monarka-cred-id');
+    if(!credId){
+      await registerBiometric();
+      return;
+    }
+
+    // Verify existing credential
+    lbl.textContent = 'Verifying…';
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const assertion = await navigator.credentials.get({
+      publicKey: {
+        challenge,
+        allowCredentials: [{ id: base64ToBuffer(credId), type: 'public-key' }],
+        userVerification: 'required',
+        timeout: 30000
+      }
+    });
+
+    if(assertion){
+      hap('success');
+      hideLockScreen();
+      // Trigger cloud sync on unlock
+      if(S.workerUrl) cloudLoad();
+    }
+
+  } catch(err) {
+    if(err.name === 'NotAllowedError'){
+      errEl.textContent = 'Authentication cancelled';
+    } else if(err.name === 'InvalidStateError'){
+      // Credential expired — re-register
+      localStorage.removeItem('monarka-cred-id');
+      errEl.textContent = 'Please authenticate again';
+      setTimeout(() => authenticate(), 1000);
+    } else {
+      errEl.textContent = err.message;
+      // Fallback — allow entry after error
+      setTimeout(() => unlockWithoutBiometrics(), 2000);
+    }
+    lbl.textContent = 'Tap to retry';
+    hap('error');
+  }
+}
+
+async function registerBiometric(){
+  const errEl = document.getElementById('lock-error');
+  const lbl = document.getElementById('lock-btn-lbl');
+  try {
+    lbl.textContent = 'Setting up Face ID…';
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const userId = crypto.getRandomValues(new Uint8Array(16));
+
+    const credential = await navigator.credentials.create({
+      publicKey: {
+        challenge,
+        rp: { name: 'MonArka', id: location.hostname },
+        user: { id: userId, name: 'monarka-user', displayName: 'MonArka User' },
+        pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+        authenticatorSelection: {
+          authenticatorAttachment: 'platform',
+          userVerification: 'required',
+          residentKey: 'preferred'
+        },
+        timeout: 30000
+      }
+    });
+
+    // Save credential ID
+    const credIdB64 = bufferToBase64(credential.rawId);
+    localStorage.setItem('monarka-cred-id', credIdB64);
+    hap('success');
+    hideLockScreen();
+    toast('Face ID set up!', 'ok');
+    if(S.workerUrl) cloudLoad();
+
+  } catch(err) {
+    errEl.textContent = 'Setup failed: ' + err.message;
+    lbl.textContent = 'Tap to retry';
+    // Allow skip if setup fails
+    setTimeout(() => unlockWithoutBiometrics(), 2500);
+  }
+}
+
+function unlockWithoutBiometrics(){
+  hideLockScreen();
+  if(S.workerUrl) cloudLoad();
+}
+
+function bufferToBase64(buffer){
+  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+function base64ToBuffer(b64){
+  const bin = atob(b64.replace(/-/g,'+').replace(/_/g,'/'));
+  return Uint8Array.from(bin, c => c.charCodeAt(0)).buffer;
+}
+
+// ── CLOUD SYNC ────────────────────────────────────────────────────────────
+let syncTimer = null;
+let lastSyncTs = null;
+
+function scheduleSave(){
+  // Debounce — save 3 seconds after last change
+  if(syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => cloudSave(), 3000);
+}
+
+async function cloudSave(){
+  if(!S.workerUrl) return;
+  try {
+    updateSyncStatus('syncing', 'Saving…');
+    const res = await fetch(S.workerUrl + '/sync/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Device-Id': deviceId },
+      body: JSON.stringify({ data: JSON.stringify(S) })
+    });
+    const d = await res.json();
+    if(d.ok){
+      lastSyncTs = d.ts;
+      updateSyncStatus('synced', 'Saved ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
+    } else {
+      updateSyncStatus('unsynced', 'Save failed');
+    }
+  } catch(e) {
+    updateSyncStatus('unsynced', 'Offline — will retry');
+  }
+}
+
+async function cloudLoad(){
+  if(!S.workerUrl) return;
+  try {
+    updateSyncStatus('syncing', 'Loading from cloud…');
+    const res = await fetch(S.workerUrl + '/sync/load', {
+      headers: { 'X-Device-Id': deviceId }
+    });
+    const d = await res.json();
+    if(d.ok && d.data){
+      const remote = JSON.parse(d.data);
+      // Merge: use remote if it has more expenses, otherwise keep local
+      const localExpCount = (S.expenses||[]).length;
+      const remoteExpCount = (remote.expenses||[]).length;
+      if(remoteExpCount >= localExpCount){
+        // Keep local settings (worker URL, API key) but restore data
+        const localWorkerUrl = S.workerUrl;
+        const localKey = S.key;
+        const localTheme = S.theme;
+        S = { ...remote, workerUrl: localWorkerUrl, key: localKey, theme: localTheme };
+        sv();
+        renderDash();
+        updateSyncStatus('synced', 'Restored from ' + new Date(d.ts).toLocaleDateString('en-GB'));
+        toast('Data restored from cloud!', 'ok');
+      } else {
+        updateSyncStatus('synced', 'Local data is newer');
+        cloudSave(); // push local to cloud
+      }
+    } else {
+      updateSyncStatus('unsynced', 'No cloud backup found');
+      if(S.expenses?.length) cloudSave(); // first sync
+    }
+  } catch(e) {
+    updateSyncStatus('unsynced', 'Could not connect');
+  }
+}
+
+async function manualSync(){
+  if(!S.workerUrl){ toast('Add Worker URL in Settings first'); return; }
+  await cloudSave();
+  toast('Synced!', 'ok');
+}
+
+function updateSyncStatus(state, msg){
+  const dot = document.getElementById('sync-dot');
+  const sub = document.getElementById('sync-sub');
+  if(dot) dot.className = 'sync-dot ' + state;
+  if(sub) sub.textContent = msg;
+}
+
 // ── PUSH NOTIFICATIONS ────────────────────────────────────────────────────
 let deviceId = localStorage.getItem('ac-device-id');
 if(!deviceId){ deviceId = 'dev-'+Date.now()+'-'+Math.random().toString(36).slice(2); localStorage.setItem('ac-device-id', deviceId); }
@@ -2169,6 +2457,7 @@ function loadForm(){
   document.getElementById('s-sp').value=S.sp||20;
   document.getElementById('s-key').value=S.key||'';
   updateThemeBtns(S.theme||'dark');
+  if(lastSyncTs) updateSyncStatus('synced','Last saved '+new Date(lastSyncTs).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
   document.getElementById('s-worker').value=S.workerUrl||'';
   updateNotifBtn();
 }
@@ -2216,6 +2505,13 @@ document.getElementById('ob-skip').addEventListener('click', obFinish);
 const savedTheme = S.theme || 'dark';
 applyTheme(savedTheme);
 updateThemeBtns(savedTheme);
+// Show lock screen if app has data
+if(S.salary || (S.expenses && S.expenses.length > 0)){
+  showLockScreen();
+} else if(S.workerUrl) {
+  // No local data — try cloud restore silently
+  cloudLoad();
+}
 // Re-apply when system theme changes (for system mode)
 window.matchMedia('(prefers-color-scheme:light)').addEventListener('change', () => {
   if((S.theme || 'dark') === 'system') applyTheme('system');
