@@ -1616,7 +1616,7 @@ function renderDash(){
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
           <div class="exp-amt ${e.c}">€${Number.isInteger(e.a)?e.a:parseFloat(e.a).toFixed(2)}</div>
-          ${(()=>{const r=getReceiptForExp(e.id);return r?`<img src="${r}" class="receipt-thumb" onclick="event.stopPropagation();openReceiptView('${e.id}')" onerror="this.style.display='none'">`:''})()}
+          ${(()=>{const r=getReceiptForExp(e.id);return r?`<img src="${r}" class="receipt-thumb" data-expid="${e.id}" onerror="this.style.display='none'">`:''})()}
         </div>
       </div>
     </div>`).join('');
@@ -2458,6 +2458,118 @@ async function sendSplitReminder(){
   }
 }
 
+
+async function analyseReceipt(dataUrl){
+  const errEl = document.getElementById('scanner-error');
+  const spinEl = document.getElementById('scanner-analysing');
+
+  function showError(msg){
+    if(spinEl) spinEl.style.display = 'none';
+    if(errEl){ errEl.style.display = 'block'; errEl.textContent = msg; }
+  }
+
+  if(!S.key){ showError('Add your Groq or Gemini API key in Settings first.'); return; }
+
+  const resized = await resizeImage(dataUrl, 1024);
+  const resizedBase64 = resized.split(',')[1];
+  const mimeType = dataUrl.split(';')[0].split(':')[1];
+
+  const prompt = 'Look at this receipt image. Find the TOTAL amount paid. Reply ONLY with a JSON object like this exact format: {"amount": 16.50, "description": "Shop Name"} — use the shop name or type of store as description. No extra text, no markdown, just the raw JSON.';
+
+  try {
+    let text = '';
+    if(S.key.startsWith('gsk_')){
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + S.key },
+        body: JSON.stringify({
+          model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+          messages: [{ role: 'user', content: [
+            { type: 'image_url', image_url: { url: resized } },
+            { type: 'text', text: prompt }
+          ]}],
+          max_tokens: 150, temperature: 0
+        })
+      });
+      const d = await res.json();
+      if(d.error){ showError('Groq: ' + d.error.message); return; }
+      text = d.choices?.[0]?.message?.content || '';
+    } else {
+      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + S.key, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [
+            { inline_data: { mime_type: mimeType, data: resizedBase64 } },
+            { text: prompt }
+          ]}],
+          generationConfig: { maxOutputTokens: 150, temperature: 0 }
+        })
+      });
+      const d = await res.json();
+      if(d.error){ showError('Gemini: ' + d.error.message); return; }
+      text = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    }
+
+    const match = text.match(/\{[\s\S]*?\}/);
+    if(!match){ showError('Could not find an amount. Try a clearer photo.'); return; }
+    const parsed = JSON.parse(match[0]);
+    if(!parsed.amount){ showError('No amount found. Make sure the total is visible.'); return; }
+
+    parsed._imageDataUrl = dataUrl;
+    scanResult = parsed;
+    if(spinEl) spinEl.style.display = 'none';
+    const amt = document.getElementById('scanner-amt');
+    const desc = document.getElementById('scanner-desc');
+    const result = document.getElementById('scanner-result');
+    if(amt) amt.textContent = '€' + parseFloat(parsed.amount).toFixed(2);
+    if(desc) desc.textContent = parsed.description || 'Expense';
+    if(result) result.style.display = 'block';
+    hap('success');
+
+  } catch(err) {
+    showError('Error: ' + err.message);
+  }
+}
+
+function resizeImage(dataUrl, maxSize){
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL('image/jpeg', 0.85));
+    };
+    img.src = dataUrl;
+  });
+}
+
+function useScan(){
+  if(!scanResult) return;
+  hap('success');
+  if(scanResult.amount){
+    const a = parseFloat(scanResult.amount);
+    if(a > 0){
+      amt = String(a);
+      const numEl = document.getElementById('log-num');
+      if(numEl){ numEl.textContent = amt; numEl.className = 'log-num lit'; }
+    }
+  }
+  if(scanResult.description){
+    const descEl = document.getElementById('exp-desc');
+    if(descEl) descEl.value = scanResult.description;
+  }
+  window._pendingReceiptImage = scanResult._imageDataUrl || null;
+  closeScannerModal();
+  goto('log', document.getElementById('tab-log'), true);
+  toast('Filled in! Pick a category ↓', 'ok');
+  scanResult = null;
+}
+
+
 // ── CLOUD SYNC ────────────────────────────────────────────────────────────
 let syncTimer = null;
 let lastSyncTs = null;
@@ -3020,16 +3132,169 @@ async function sendOverspendPush(msg){
 
 // ── RECEIPT SCANNER ───────────────────────────────────────────────────────
 let scanResult = null;
+let cameraStream = null;
+let cameraFacing = 'environment'; // back camera by default
 
 function openScannerModal(){
   hap('light');
+  scanResult = null;
+  clearScan();
   document.getElementById('scanner-modal').classList.add('open');
-  // Show FAB only on log tab
 }
 
 function closeScannerModal(){
   hap('light');
+  stopCamera();
   document.getElementById('scanner-modal').classList.remove('open');
+}
+
+// ── LIVE CAMERA ───────────────────────────────────────────────────────────
+async function startLiveCamera(){
+  const wrap = document.getElementById('scanner-camera-wrap');
+  const uploadWrap = document.getElementById('scanner-upload-wrap');
+  const camBtn = document.getElementById('scanner-cam-btn');
+
+  try {
+    // Request camera permission
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: cameraFacing, width:{ideal:1920}, height:{ideal:1080} },
+      audio: false
+    });
+
+    const video = document.getElementById('scanner-video');
+    video.srcObject = cameraStream;
+    await video.play();
+
+    wrap.style.display = 'block';
+    uploadWrap.style.display = 'none';
+    camBtn.style.display = 'none';
+
+    // Start overlay animation (document detection simulation)
+    requestAnimationFrame(drawOverlay);
+
+  } catch(err) {
+    if(err.name === 'NotAllowedError'){
+      toast('Camera permission denied — use upload instead');
+    } else {
+      toast('Camera unavailable — use upload');
+    }
+  }
+}
+
+function stopCamera(){
+  if(cameraStream){
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  const video = document.getElementById('scanner-video');
+  if(video) video.srcObject = null;
+  const wrap = document.getElementById('scanner-camera-wrap');
+  if(wrap) wrap.style.display = 'none';
+  const uploadWrap = document.getElementById('scanner-upload-wrap');
+  if(uploadWrap) uploadWrap.style.display = 'block';
+  const camBtn = document.getElementById('scanner-cam-btn');
+  if(camBtn) camBtn.style.display = 'flex';
+}
+
+function switchCameraSource(){
+  cameraFacing = cameraFacing === 'environment' ? 'user' : 'environment';
+  stopCamera();
+  startLiveCamera();
+}
+
+// ── DOCUMENT DETECTION OVERLAY (animated scanning guide) ─────────────────
+let overlayFrame = 0;
+function drawOverlay(){
+  const modal = document.getElementById('scanner-modal');
+  if(!modal.classList.contains('open') || !cameraStream) return;
+
+  const canvas = document.getElementById('scanner-overlay');
+  const video = document.getElementById('scanner-video');
+  if(!canvas || !video) return;
+
+  canvas.width = video.offsetWidth;
+  canvas.height = video.offsetHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Draw corner brackets like iOS document scanner
+  const w = canvas.width, h = canvas.height;
+  const pad = 24, len = 32, r = 6;
+  const gold = 'rgba(201,168,76,0.9)';
+  const pulse = 0.7 + 0.3 * Math.sin(overlayFrame * 0.05);
+
+  ctx.strokeStyle = `rgba(201,168,76,${pulse})`;
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+
+  // Four corner brackets
+  const corners = [
+    [pad, pad, 1, 1],
+    [w-pad, pad, -1, 1],
+    [pad, h-pad, 1, -1],
+    [w-pad, h-pad, -1, -1]
+  ];
+  corners.forEach(([x, y, dx, dy]) => {
+    ctx.beginPath();
+    ctx.moveTo(x + dx*len, y);
+    ctx.lineTo(x, y);
+    ctx.lineTo(x, y + dy*len);
+    ctx.stroke();
+  });
+
+  // Scanning line
+  const scanY = pad + ((h - pad*2) * ((overlayFrame % 120) / 120));
+  const gradient = ctx.createLinearGradient(pad, scanY, w-pad, scanY);
+  gradient.addColorStop(0, 'transparent');
+  gradient.addColorStop(0.5, `rgba(201,168,76,${pulse * 0.6})`);
+  gradient.addColorStop(1, 'transparent');
+  ctx.strokeStyle = gradient;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(pad, scanY);
+  ctx.lineTo(w-pad, scanY);
+  ctx.stroke();
+
+  overlayFrame++;
+  requestAnimationFrame(drawOverlay);
+}
+
+// ── CAPTURE from live camera ──────────────────────────────────────────────
+function captureFromCamera(){
+  const video = document.getElementById('scanner-video');
+  if(!video || !cameraStream) return;
+
+  hap('medium');
+
+  // Flash effect
+  const flash = document.createElement('div');
+  flash.style.cssText = 'position:absolute;inset:0;background:#fff;border-radius:16px;opacity:0.8;pointer-events:none;transition:opacity 0.3s';
+  document.getElementById('scanner-camera-wrap').appendChild(flash);
+  setTimeout(() => flash.remove(), 300);
+
+  // Capture frame to canvas
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+  stopCamera();
+  processCapture(dataUrl);
+}
+
+// ── PROCESS CAPTURE (from camera or file) ─────────────────────────────────
+function processCapture(dataUrl){
+  const preview = document.getElementById('scanner-preview-img');
+  const wrap = document.getElementById('scanner-preview-wrap');
+  preview.src = dataUrl;
+  wrap.style.display = 'block';
+  document.getElementById('scanner-drop').style.display = 'none';
+  document.getElementById('scanner-cam-btn').style.display = 'none';
+  document.getElementById('scanner-result').style.display = 'none';
+  document.getElementById('scanner-error').style.display = 'none';
+  document.getElementById('scanner-analysing').style.display = 'block';
+  analyseReceipt(dataUrl);
 }
 
 function triggerScanFile(){
@@ -3038,136 +3303,30 @@ function triggerScanFile(){
 
 function clearScan(){
   scanResult = null;
-  document.getElementById('scanner-preview-wrap').style.display = 'none';
-  document.getElementById('scanner-result').style.display = 'none';
-  document.getElementById('scanner-error').style.display = 'none';
-  document.getElementById('scanner-drop').style.display = 'block';
+  const wrap = document.getElementById('scanner-preview-wrap');
+  if(wrap) wrap.style.display = 'none';
+  const result = document.getElementById('scanner-result');
+  if(result) result.style.display = 'none';
+  const err = document.getElementById('scanner-error');
+  if(err) err.style.display = 'none';
+  const analysing = document.getElementById('scanner-analysing');
+  if(analysing) analysing.style.display = 'none';
+  const drop = document.getElementById('scanner-drop');
+  if(drop) drop.style.display = 'block';
+  const camBtn = document.getElementById('scanner-cam-btn');
+  if(camBtn) camBtn.style.display = 'flex';
 }
 
 function handleScanFile(e){
   const file = e.target.files[0];
   if(!file) return;
   const reader = new FileReader();
-  reader.onload = async ev => {
-    // Show preview
-    const wrap = document.getElementById('scanner-preview-wrap');
-    document.getElementById('scanner-preview-img').src = ev.target.result;
-    wrap.style.display = 'block';
-    document.getElementById('scanner-drop').style.display = 'none';
-    document.getElementById('scanner-result').style.display = 'none';
-    document.getElementById('scanner-error').style.display = 'none';
-    document.getElementById('scanner-analysing').style.display = 'block';
-    await analyseReceipt(ev.target.result);
-  };
+  reader.onload = ev => processCapture(ev.target.result);
   reader.readAsDataURL(file);
   e.target.value = '';
 }
 
-async function analyseReceipt(dataUrl){
-  const errEl = document.getElementById('scanner-error');
-  const spinEl = document.getElementById('scanner-analysing');
 
-  function showError(msg){
-    spinEl.style.display = 'none';
-    errEl.style.display = 'block';
-    errEl.textContent = msg;
-  }
-
-  if(!S.key){ showError('Add your Groq or Gemini API key in Settings first.'); return; }
-
-  const base64 = dataUrl.split(',')[1];
-  const mimeType = dataUrl.split(';')[0].split(':')[1];
-
-  // Resize image to reduce payload size — max 1024px
-  const resized = await resizeImage(dataUrl, 1024);
-  const resizedBase64 = resized.split(',')[1];
-
-  const prompt = 'Look at this receipt image. Find the TOTAL amount paid. Reply ONLY with a JSON object like this exact format: {"amount": 16.50, "description": "Shop Name"} — use the shop name or type of store as description. No extra text, no markdown, just the raw JSON.';
-
-  try {
-    let text = '';
-
-    if(S.key.startsWith('gsk_')){
-      // Groq vision
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + S.key
-        },
-        body: JSON.stringify({
-          model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'image_url', image_url: { url: resized } },
-              { type: 'text', text: prompt }
-            ]
-          }],
-          max_tokens: 150,
-          temperature: 0
-        })
-      });
-      const d = await res.json();
-      if(d.error){ showError('Groq error: ' + d.error.message); return; }
-      text = d.choices?.[0]?.message?.content || '';
-    } else {
-      // Gemini vision
-      const res = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + S.key,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [
-              { inline_data: { mime_type: mimeType, data: resizedBase64 } },
-              { text: prompt }
-            ]}],
-            generationConfig: { maxOutputTokens: 150, temperature: 0 }
-          })
-        }
-      );
-      const d = await res.json();
-      if(d.error){ showError('Gemini error: ' + d.error.message); return; }
-      text = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    }
-
-    // Extract JSON from response — handle markdown fences
-    const jsonMatch = text.match(/\{[\s\S]*?\}/);
-    if(!jsonMatch){ showError('AI could not find an amount. Try a clearer photo of the total.'); return; }
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    if(!parsed.amount){ showError('No amount found. Make sure the total is visible in the photo.'); return; }
-
-    parsed._imageDataUrl = dataUrl;
-    scanResult = parsed;
-    spinEl.style.display = 'none';
-    document.getElementById('scanner-amt').textContent = fmt(parsed.amount);
-    document.getElementById('scanner-desc').textContent = parsed.description || 'Expense';
-    document.getElementById('scanner-result').style.display = 'block';
-    hap('success');
-
-  } catch(err) {
-    showError('Error: ' + err.message);
-  }
-}
-
-// Resize image to max dimension before sending to AI
-function resizeImage(dataUrl, maxSize){
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => {
-      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-      const w = Math.round(img.width * scale);
-      const h = Math.round(img.height * scale);
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', 0.85));
-    };
-    img.src = dataUrl;
-  });
-}
 
 function useScan(){
   if(!scanResult) return;
@@ -3345,4 +3504,77 @@ window.addEventListener('resize',()=>{
 </script>
 
 </body>
-</html>
+</html><!-- SCANNER MODAL -->
+<div class="scanner-modal" id="scanner-modal">
+  <div class="scanner-modal-hdr">
+    <div class="scanner-modal-title">📷 Receipt Scanner</div>
+    <button class="scanner-close" onclick="closeScannerModal()">✕</button>
+  </div>
+  <div class="scanner-body">
+
+    <!-- LIVE CAMERA VIEW -->
+    <div id="scanner-camera-wrap" style="display:none;position:relative;margin-bottom:16px">
+      <video id="scanner-video" autoplay playsinline muted
+        style="width:100%;border-radius:16px;max-height:320px;object-fit:cover;background:#000;display:block"></video>
+      <!-- Document corner overlay -->
+      <canvas id="scanner-overlay" style="position:absolute;inset:0;width:100%;height:100%;border-radius:16px;pointer-events:none"></canvas>
+      <!-- Capture button -->
+      <div style="position:absolute;bottom:12px;left:0;right:0;display:flex;justify-content:center;gap:16px">
+        <button onclick="captureFromCamera()" style="width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,0.95);border:3px solid rgba(201,168,76,0.6);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 16px rgba(0,0,0,0.3)">📸</button>
+      </div>
+      <div style="position:absolute;top:12px;right:12px">
+        <button onclick="switchCameraSource()" style="padding:6px 12px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);border-radius:20px;color:#fff;font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif">Flip</button>
+      </div>
+    </div>
+
+    <!-- UPLOAD FALLBACK (shown when camera unavailable) -->
+    <div id="scanner-upload-wrap">
+      <div class="scanner-drop" id="scanner-drop" onclick="triggerScanFile()">
+        <span class="scanner-drop-icon">📸</span>
+        <div class="scanner-drop-title">Tap to scan a receipt</div>
+        <div class="scanner-drop-sub">Take a photo or choose from your library.<br>Works with receipts, bank screenshots, invoices.</div>
+      </div>
+    </div>
+
+    <!-- Camera toggle button -->
+    <button id="scanner-cam-btn" onclick="startLiveCamera()" style="width:100%;padding:11px;background:var(--surface);border:1px solid var(--border);border-radius:14px;color:var(--text);font-family:'Outfit',sans-serif;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:8px">
+      <span>📷</span> Use live camera instead
+    </button>
+
+    <div class="scanner-preview-wrap" id="scanner-preview-wrap">
+      <img id="scanner-preview-img" src="" alt="Receipt preview">
+      <button class="scanner-preview-clear" onclick="clearScan()">✕</button>
+    </div>
+
+    <div class="scanner-analysing" id="scanner-analysing">
+      <div class="scanner-analysing-ring"></div>
+      Analysing your receipt with AI…
+    </div>
+
+    <div class="scanner-result" id="scanner-result">
+      <div class="scanner-result-hdr">
+        <div class="scanner-result-dot"></div>
+        <div class="scanner-result-lbl">Detected</div>
+      </div>
+      <div class="scanner-result-row">
+        <span class="scanner-result-key">Amount</span>
+        <span class="scanner-result-val" id="scanner-amt">—</span>
+      </div>
+      <div class="scanner-result-row">
+        <span class="scanner-result-key">Description</span>
+        <span class="scanner-result-desc" id="scanner-desc">—</span>
+      </div>
+      <button class="scanner-use-btn" onclick="useScan()">Use this in Log ↗</button>
+    </div>
+
+    <div class="scanner-error" id="scanner-error"></div>
+
+    <div class="scanner-tips">
+      <div class="scanner-tips-title">Tips for best results</div>
+      <div class="scanner-tip">Flat surface, good lighting, no shadows</div>
+      <div class="scanner-tip">Make sure the total amount is clearly visible</div>
+      <div class="scanner-tip">Works with receipts, invoices, bank screenshots</div>
+    </div>
+
+  </div>
+</div>
