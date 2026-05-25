@@ -3,7 +3,7 @@
 
 // Version is injected automatically at deploy time via GitHub Actions
 // Falls back to timestamp if not injected
-const VERSION = 'monarka-1779691395';
+const VERSION = 'monarka-1779691425';
 const ASSETS = ['./manifest.json'];
 
 self.addEventListener('install', e => {
@@ -105,4 +105,8 @@ self.addEventListener('activate', e => {
       clients.forEach(client => client.postMessage({ type: 'SW_UPDATED', version: VERSION }));
     })
   );
+});
+
+self.addEventListener('message', e => {
+  if(e.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
