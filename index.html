@@ -126,46 +126,109 @@ body{
 .scroll-area::-webkit-scrollbar{display:none}
 .tabs{
   position:fixed;
-  bottom:calc(env(safe-area-inset-bottom) + 12px);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 10px);
   left:50%;
   transform:translateX(-50%);
-  width:calc(100% - 32px);
-  max-width:398px;
+  width:calc(100% - 24px);
+  max-width:420px;
   z-index:100;
   display:flex;
-  border-radius:26px;
-  padding:6px 4px;
-  border:1px solid rgba(201,168,76,0.2);
-  background:rgba(0,0,0,0.82);
-  backdrop-filter:blur(24px) saturate(180%);
-  -webkit-backdrop-filter:blur(24px) saturate(180%);
-  box-shadow:0 8px 32px rgba(0,0,0,0.4),inset 0 1px 0 rgba(201,168,76,0.12);
-  overflow:hidden;
-  transition:background .3s,border-color .3s;
+  align-items:center;
+  border-radius:28px;
+  padding:5px;
+  border:1px solid rgba(255,255,255,0.08);
+  background:rgba(8,8,10,0.78);
+  backdrop-filter:blur(40px) saturate(200%) brightness(1.1);
+  -webkit-backdrop-filter:blur(40px) saturate(200%) brightness(1.1);
+  box-shadow:
+    0 0 0 0.5px rgba(255,255,255,0.06),
+    0 8px 32px rgba(0,0,0,0.6),
+    0 2px 8px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.07);
+  overflow:visible;
+  transition:background .4s,border-color .4s;
+  gap:2px;
 }
-html.theme-light .tabs{
-  background:rgba(240,242,245,0.92)!important;
-  border-color:rgba(184,146,42,0.25)!important;
-  box-shadow:0 8px 24px rgba(0,0,0,0.12),inset 0 1px 0 rgba(255,255,255,0.8)!important;
+
+/* Active tab text color */
+
+.tab.active .tab-lbl{color:var(--lime-text)!important;opacity:1!important}
+.tab.active .tab-icon svg{stroke:var(--lime-text)!important}
+
+.tab{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+  padding:8px 2px 7px;
+  border:none;
+  background:none;
+  cursor:pointer;
+  position:relative;
+  z-index:1;
+  border-radius:22px;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;
+  transition:transform .18s cubic-bezier(.34,1.56,.64,1);
+  will-change:transform;
 }
-html.theme-system .tabs{background:rgba(0,0,0,0.82)}
-@media(prefers-color-scheme:light){
-  html.theme-system .tabs{
-    background:rgba(240,242,245,0.92)!important;
-    border-color:rgba(184,146,42,0.25)!important;
-  }
+.tab:active{transform:scale(0.88)!important}
+
+.tab-icon{
+  width:24px;height:24px;
+  display:flex;align-items:center;justify-content:center;
+  transition:transform .32s cubic-bezier(.34,1.56,.64,1);
+  will-change:transform;
 }
+.tab-icon svg{
+  width:22px;height:22px;
+  stroke-width:1.7;
+  stroke:rgba(255,255,255,0.35);
+  fill:none;
+  transition:stroke .22s ease, filter .22s ease;
+}
+.tab.active .tab-icon{transform:scale(1.18) translateY(-1px)}
+.tab.active .tab-icon svg{
+  stroke:var(--lime-text);
+  filter:drop-shadow(0 0 6px rgba(201,168,76,0.5));
+}
+
+.tab-lbl{
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.3);
+  transition:color .22s ease, opacity .22s ease, transform .22s ease;
+  line-height:1;
+  white-space:nowrap;
+}
+.tab.active .tab-lbl{
+  color:var(--lime-text);
+  opacity:1;
+}
+
+/* The sliding gold pill */
 .tabs-pill{
   position:absolute;
-  height:calc(100% - 8px);
-  top:4px;
-  background:rgba(201,168,76,0.18);
+  height:calc(100% - 10px);
+  top:5px;
+  background:rgba(201,168,76,0.12);
   border-radius:22px;
-  border:1px solid rgba(201,168,76,0.35);
-  box-shadow:0 2px 12px rgba(201,168,76,0.15),inset 0 1px 0 rgba(201,168,76,0.25);
-  transition:left .28s cubic-bezier(.4,0,.2,1),width .28s cubic-bezier(.4,0,.2,1),background .3s;
+  border:1px solid rgba(201,168,76,0.28);
+  box-shadow:
+    0 0 16px rgba(201,168,76,0.1),
+    inset 0 1px 0 rgba(201,168,76,0.2),
+    inset 0 -1px 0 rgba(0,0,0,0.15);
+  transition:
+    left .32s cubic-bezier(.4,0,.2,1),
+    width .32s cubic-bezier(.4,0,.2,1),
+    background .3s;
   pointer-events:none;
   z-index:0;
+  will-change:left,width;
 }
 html.theme-light .tabs-pill{
   background:rgba(184,146,42,0.18)!important;
@@ -1683,14 +1746,14 @@ function goto(id,btn,skipHap){
   if(fab)fab.className='scan-fab visible';
 }
 
-function movePill(activeBtn){
-  const pill=document.getElementById('tabs-pill');
-  const bar=document.getElementById('tabs-bar');
-  if(!pill||!bar||!activeBtn)return;
-  const barRect=bar.getBoundingClientRect();
-  const btnRect=activeBtn.getBoundingClientRect();
-  pill.style.left=(btnRect.left-barRect.left+4)+'px';
-  pill.style.width=(btnRect.width-8)+'px';
+function movePill(btn){
+  const pill = document.getElementById('tabs-pill');
+  const tabs = document.getElementById('tabs-bar');
+  if(!pill||!tabs||!btn) return;
+  const tr = tabs.getBoundingClientRect();
+  const br = btn.getBoundingClientRect();
+  pill.style.left = (br.left - tr.left) + 'px';
+  pill.style.width = br.width + 'px';
 }
 
 // ── SWIPE BETWEEN TABS (tab bar only) ────────────────────────────────────
