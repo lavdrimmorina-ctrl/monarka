@@ -2976,13 +2976,15 @@ function openDebtModal(id){
     document.getElementById('dm-total').value = '24';
     document.getElementById('dm-date').value = new Date().toLocaleDateString('en-GB').split('/').join('.');
   }
-  modal.classList.remove('hidden');
+  modal.classList.add('show');
   hap('light');
 }
 
 function closeDebtModal(e){
-  if(e && e.target !== document.getElementById('debt-modal')) return;
-  document.getElementById('debt-modal').classList.add('hidden');
+  // Close when: called directly (no event), from ✕ button, or clicking backdrop
+  if(e && e.target !== document.getElementById('debt-modal') && 
+     !e.target.classList.contains('modal-close')) return;
+  document.getElementById('debt-modal').classList.remove('show');
   _editDebtId = null;
 }
 
@@ -3007,7 +3009,7 @@ function saveDebtModal(){
     addDebt({description:desc, monthly, balance, paid, total, date});
     toast('Added ✓', 'ok');
   }
-  document.getElementById('debt-modal').classList.add('hidden');
+  document.getElementById('debt-modal').classList.remove('show');
   hap('success');
 }
 
@@ -3240,7 +3242,7 @@ function openReceiptView(expId){
   const imgEl = document.getElementById('receipt-view-img');
   if(!modal || !imgEl) return;
   imgEl.src = img;
-  modal.classList.remove('hidden');
+  modal.classList.add('show');
   hap('light');
 }
 
@@ -3966,7 +3968,7 @@ window.addEventListener('resize',()=>{
 
 
 <!-- DEBT MODAL (Add/Edit) -->
-<div class="modal-wrap hidden" id="debt-modal" onclick="closeDebtModal(event)">
+<div class="modal-wrap" id="debt-modal" onclick="closeDebtModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-hdr">
       <div class="modal-title" id="debt-modal-title">Add Installment</div>
