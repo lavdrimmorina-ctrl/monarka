@@ -2,7 +2,7 @@
 // Strategy: NEVER cache index.html — always fetch fresh from network
 // Cache only static assets (icons, manifest)
 
-const CACHE = 'monarka-v4';
+const CACHE = 'monarka-v4.1';
 
 self.addEventListener('install', e => {
   e.waitUntil(
