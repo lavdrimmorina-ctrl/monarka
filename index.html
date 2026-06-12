@@ -731,7 +731,41 @@ html.theme-light .tabs-pill{
 .split-history{opacity:0.5}
 
 /* RECEIPT THUMB */
-.receipt-thumb{width:44px;height:44px;border-radius:10px;object-fit:cover;cursor:pointer;border:2px solid var(--lime-border);flex-shrink:0;-webkit-tap-highlight-color:rgba(201,168,76,0.2)}
+.receipt-thumb{width:36px;height:36px;border-radius:8px;object-fit:cover;cursor:pointer;border:1px solid var(--border);flex-shrink:0}
+
+
+/* DEBTS TAB */
+.debt-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:13px 15px;margin-bottom:8px;transition:opacity .2s}
+.debt-card.paid{opacity:0.45}
+.debt-card-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
+.debt-card-desc{font-size:13px;font-weight:500;color:var(--text);flex:1;line-height:1.3}
+.debt-card-balance{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--amber);flex-shrink:0}
+.debt-card-balance.paid{color:var(--lime-text);text-decoration:line-through}
+.debt-card-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.debt-badge{font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:3px 8px;border-radius:6px}
+.debt-badge.active{background:var(--amber-bg);color:var(--amber)}
+.debt-badge.paid{background:var(--lime-bg);color:var(--lime-text)}
+.debt-ratio{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.debt-monthly{font-size:11px;color:var(--muted)}
+.debt-actions{display:flex;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.debt-action-btn{flex:1;padding:7px;border-radius:9px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-family:'Outfit',sans-serif;font-size:11px;font-weight:600;cursor:pointer;text-transform:uppercase;letter-spacing:0.06em}
+.debt-action-btn.close{background:var(--lime-bg);border-color:var(--lime-border);color:var(--lime-text)}
+.debt-action-btn.del{background:var(--red-bg);border-color:var(--red-border);color:var(--red)}
+
+/* SNOWBALL RESULT */
+.snowball-month{background:var(--surface2);border-radius:12px;padding:12px 14px;margin-bottom:8px}
+.snowball-month-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.snowball-month-title{font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text)}
+.snowball-month-budget{font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--muted)}
+.snowball-item{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)}
+.snowball-item:last-of-type{border-bottom:none}
+.snowball-item-dot{width:6px;height:6px;border-radius:50%;background:var(--lime-text);flex-shrink:0}
+.snowball-item-desc{font-size:12px;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.snowball-item-cost{font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--amber);flex-shrink:0}
+.snowball-item-save{font-size:11px;color:var(--lime-text);flex-shrink:0}
+.snowball-simulate-btn{width:100%;margin-top:10px;padding:10px;background:var(--lime);border:none;border-radius:11px;color:#0a0c02;font-family:'Outfit',sans-serif;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.06em;text-transform:uppercase}
+.snowball-empty{text-align:center;padding:16px;color:var(--muted);font-size:13px}
+.snowball-freed{display:inline-flex;align-items:center;gap:4px;background:var(--lime-bg);border:1px solid var(--lime-border);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--lime-text);margin-top:8px}
 
 /* TOAST */
 .toast{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);left:50%;transform:translateX(-50%) translateY(14px);background:var(--surface3);border:1px solid var(--border2);color:var(--text);padding:10px 20px;border-radius:50px;font-size:13px;font-weight:500;opacity:0;transition:all .28s cubic-bezier(.34,1.56,.64,1);pointer-events:none;white-space:nowrap;z-index:9999;letter-spacing:0.04em}
@@ -1000,6 +1034,63 @@ html.theme-light .tabs-pill{
     </div>
   </div>
 
+  <!-- ══ DEBTS ══ -->
+  <div class="page" id="pg-debts">
+    <div class="scroll-area" style="padding-bottom:100px">
+
+      <!-- SUMMARY CARDS -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+        <div class="gc" style="padding:14px 16px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Monthly</div>
+          <div style="font-size:22px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--red)" id="debt-total-monthly">€0</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">total installments</div>
+        </div>
+        <div class="gc" style="padding:14px 16px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Remaining</div>
+          <div style="font-size:22px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--amber)" id="debt-total-balance">€0</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">total debt</div>
+        </div>
+      </div>
+
+      <!-- PROGRESS BAR -->
+      <div class="gc" style="padding:14px 16px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+          <div style="font-size:12px;font-weight:600;color:var(--text)" id="debt-progress-lbl">Loading…</div>
+          <div style="font-size:12px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--lime-text)" id="debt-progress-pct">0%</div>
+        </div>
+        <div style="height:6px;background:var(--surface2);border-radius:4px;overflow:hidden">
+          <div id="debt-progress-bar" style="height:100%;background:linear-gradient(90deg,var(--lime),var(--amber));border-radius:4px;width:0%;transition:width .5s cubic-bezier(.4,0,.2,1)"></div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px" id="debt-free-date">Calculating debt-free date…</div>
+      </div>
+
+      <!-- SNOWBALL STRATEGY -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="set-sect" style="margin:0">💡 Snowball Strategy</div>
+      </div>
+      <div class="gc" style="padding:16px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <div style="font-size:13px;color:var(--text);font-weight:500">Extra budget this month</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+            <span style="font-size:14px;color:var(--muted)">€</span>
+            <input type="number" id="debt-extra-input" value="100" min="0" step="10"
+              style="width:80px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:7px 10px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;text-align:right"
+              oninput="renderSnowball()">
+          </div>
+        </div>
+        <div id="snowball-result"></div>
+      </div>
+
+      <!-- LOANS LIST -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="set-sect" style="margin:0">All Installments</div>
+        <button onclick="openDebtModal()" style="padding:6px 14px;background:var(--lime-bg);border:1px solid var(--lime-border);border-radius:10px;color:var(--lime-text);font-family:'Outfit',sans-serif;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.08em;text-transform:uppercase">+ Add</button>
+      </div>
+      <div id="debt-list"></div>
+
+    </div>
+  </div>
+
   <!-- ══ REPORT ══ -->
   <div class="page" id="pg-report">
     <div class="scroll-area">
@@ -1140,23 +1231,27 @@ html.theme-light .tabs-pill{
 <!-- TAB BAR -->
 <div class="tabs" id="tabs-bar">
   <div class="tabs-pill" id="tabs-pill"></div>
-  <button class="tab active" id="tab-dash" data-tab="dash">
+  <button class="tab active" id="tab-dash" onclick="goto('dash',this)">
     <div class="tab-icon"><svg fill="none" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
     <span class="tab-lbl">Home</span>
   </button>
-  <button class="tab" id="tab-log" data-tab="log">
+  <button class="tab" id="tab-log" onclick="goto('log',this)">
     <div class="tab-icon"><svg fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
     <span class="tab-lbl">Log</span>
   </button>
-  <button class="tab" id="tab-goals" data-tab="goals">
+  <button class="tab" id="tab-goals" onclick="goto('goals',this)">
     <div class="tab-icon"><svg fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="21"/><line x1="3" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="21" y2="12"/></svg></div>
     <span class="tab-lbl">Goals</span>
   </button>
-  <button class="tab" id="tab-report" data-tab="report">
+  <button class="tab" id="tab-debts" onclick="goto('debts',this)">
+    <div class="tab-icon"><svg fill="none" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2" stroke-width="1.7"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="14" x2="10" y2="14"/></svg></div>
+    <span class="tab-lbl">Debts</span>
+  </button>
+  <button class="tab" id="tab-report" onclick="goto('report',this)">
     <div class="tab-icon"><svg fill="none" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
     <span class="tab-lbl">Report</span>
   </button>
-  <button class="tab" id="tab-settings" data-tab="settings">
+  <button class="tab" id="tab-settings" onclick="goto('settings',this)">
     <div class="tab-icon"><svg fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
     <span class="tab-lbl">Settings</span>
   </button>
@@ -1402,7 +1497,7 @@ html.theme-light .tabs-pill{
 
 <script>
 // ── STATE ─────────────────────────────────────────────────────────────────
-const DEF={salary:0,payday:25,np:50,wp:30,sp:20,key:'',expenses:[],goals:[],recurring:[]};
+const DEF={salary:0,payday:25,np:50,wp:30,sp:20,key:'',expenses:[],goals:[],recurring:[],debts:[],debtExtraBudget:100};
 let S={...DEF};
 let amt='',cat='',gEmoji='🎯',isRecurring=false,recFreq='monthly';
 let activeFilter='all',reportOffset=0;
@@ -1426,8 +1521,149 @@ function hap(t='light'){
 }
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────
+const INITIAL_DEBTS = [
+  {date:"26.11.2024",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:18,total:24,monthly:9.56,balance:57.39},
+  {date:"19.02.2025",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:15,total:24,monthly:3.13,balance:28.05},
+  {date:"05.03.2025",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:14,total:24,monthly:4.57,balance:45.76},
+  {date:"05.03.2025",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:14,total:24,monthly:15.73,balance:157.33},
+  {date:"07.03.2025",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:14,total:24,monthly:1.67,balance:16.60},
+  {date:"04.04.2025",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:13,total:24,monthly:1.65,balance:18.24},
+  {date:"16.04.2025",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:13,total:24,monthly:3.81,balance:41.97},
+  {date:"07.10.2025",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:7,total:24,monthly:14.33,balance:243.69},
+  {date:"07.10.2025",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:7,total:24,monthly:27.33,balance:464.69},
+  {date:"23.11.2025",description:"Blerje Pos Pristina Gjirafa Inc",paid:6,total:24,monthly:6.79,balance:122.26},
+  {date:"20.01.2026",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:4,total:24,monthly:14.38,balance:287.48},
+  {date:"06.02.2026",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:3,total:4,monthly:7.50,balance:7.50},
+  {date:"09.02.2026",description:"Blerje Pos Pristina Gjirafa Inc",paid:3,total:14,monthly:5.00,balance:55.00},
+  {date:"17.02.2026",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:3,total:24,monthly:2.71,balance:56.87},
+  {date:"02.03.2026",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:2,total:36,monthly:6.39,balance:217.20},
+  {date:"03.03.2026",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:2,total:36,monthly:5.56,balance:188.88},
+  {date:"06.03.2026",description:"Blerje Pos Pristina Gjirafa Inc",paid:2,total:15,monthly:2.50,balance:32.50},
+  {date:"17.03.2026",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:2,total:36,monthly:1.28,balance:43.43},
+  {date:"24.03.2026",description:"Blerje Pos Pristina Gjirafa Inc",paid:2,total:17,monthly:0.97,balance:14.56},
+  {date:"26.03.2026",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:2,total:36,monthly:4.17,balance:141.66},
+  {date:"07.04.2026",description:"Blerje Pos Prishtine Gjirafa Inc-dega Kosove",paid:1,total:36,monthly:1.51,balance:52.69}
+].map((d,i) => ({...d, id:'debt-init-'+i, status:'active'}));
+
+
+// ── DEBT / SNOWBALL ENGINE ────────────────────────────────────────────────
+
+// Seed initial debts if none exist
+function seedDebts(){
+  if(!S.debts || S.debts.length === 0){
+    S.debts = INITIAL_DEBTS;
+    sv();
+  }
+}
+
+// ── DEBT CRUD ─────────────────────────────────────────────────────────────
+function addDebt(debt){
+  const d = {
+    id: 'debt-' + Date.now(),
+    date: debt.date || new Date().toLocaleDateString('en-GB').split('/').join('.'),
+    description: debt.description || 'Installment',
+    paid: parseInt(debt.paid) || 0,
+    total: parseInt(debt.total) || 12,
+    monthly: parseFloat(debt.monthly) || 0,
+    balance: parseFloat(debt.balance) || 0,
+    status: 'active'
+  };
+  S.debts = [...(S.debts||[]), d];
+  sv();
+  renderDebts();
+}
+
+function updateDebt(id, fields){
+  S.debts = (S.debts||[]).map(d => d.id === id ? {...d, ...fields} : d);
+  sv();
+  renderDebts();
+}
+
+function deleteDebt(id){
+  S.debts = (S.debts||[]).filter(d => d.id !== id);
+  sv();
+  renderDebts();
+}
+
+function markDebtPaid(id){
+  updateDebt(id, {status:'paid'});
+}
+
+// ── DEBT CALCULATIONS ─────────────────────────────────────────────────────
+function debtStats(){
+  const active = (S.debts||[]).filter(d => d.status === 'active');
+  const totalMonthly = active.reduce((s,d) => s + d.monthly, 0);
+  const totalBalance = active.reduce((s,d) => s + d.balance, 0);
+  const monthsToFree = active.length ? Math.max(...active.map(d => d.total - d.paid)) : 0;
+  return { totalMonthly, totalBalance, activeCount: active.length, monthsToFree };
+}
+
+// ── SNOWBALL ENGINE ────────────────────────────────────────────────────────
+// Returns a 3-month projection of what can be closed each month
+function snowball(extraBudget){
+  // Work on a copy — don't mutate state
+  let debts = (S.debts||[])
+    .filter(d => d.status === 'active')
+    .map(d => ({...d}))
+    .sort((a,b) => a.balance - b.balance); // smallest balance first
+
+  const months = [];
+  let rollingExtra = parseFloat(extraBudget) || 0;
+  let freedMonthly = 0; // monthly freed from closed debts compounds each month
+
+  for(let month = 0; month < 3; month++){
+    const available = rollingExtra + freedMonthly;
+    const closeable = [];
+    let leftover = available;
+
+    for(const debt of debts){
+      if(leftover >= debt.balance){
+        closeable.push({...debt, costToClose: debt.balance});
+        leftover -= debt.balance;
+        freedMonthly += debt.monthly; // freed installment rolls into next month
+      }
+    }
+
+    // Remove closed debts from working copy
+    const closedIds = new Set(closeable.map(d => d.id));
+    debts = debts.filter(d => !closedIds.has(d.id));
+
+    const monthlyAfter = debts.reduce((s,d) => s + d.monthly, 0);
+
+    months.push({
+      month: month + 1,
+      available: available,
+      closeable,
+      leftover,
+      freedThisMonth: closeable.reduce((s,d) => s + d.monthly, 0),
+      totalFreedSoFar: freedMonthly,
+      remainingDebts: debts.length,
+      monthlyAfter
+    });
+
+    rollingExtra = leftover; // any leftover carries to next month
+  }
+
+  return months;
+}
+
+// ── SIMULATE CLOSURES ─────────────────────────────────────────────────────
+// Actually marks debts as paid in state
+function simulateClosures(debtIds){
+  debtIds.forEach(id => {
+    S.debts = (S.debts||[]).map(d =>
+      d.id === id ? {...d, status:'paid', paidAt: Date.now()} : d
+    );
+  });
+  sv();
+  renderDebts();
+  hap('success');
+  toast('Loans marked as closed! ✓', 'ok');
+}
+
+
 // ── TAB ORDER for swipe ──────────────────────────────────────────────────
-const TAB_ORDER=['dash','log','goals','report','settings'];
+const TAB_ORDER=['dash','log','goals','debts','report','settings'];
 
 function goto(id,btn,skipHap){
   if(!skipHap)hap('light');
@@ -1439,6 +1675,7 @@ function goto(id,btn,skipHap){
   movePill(btn);
   if(id==='dash')renderDash();
   if(id==='goals'){renderGoals();renderRecurringList();renderSplits();}
+  if(id==='debts'){renderDebts();}
   if(id==='report'){reportOffset=0;renderReport();}
   if(id==='settings')loadForm();
   // FAB is inside log page — always visible there
@@ -1620,15 +1857,6 @@ function renderDash(){
         </div>
       </div>
     </div>`).join('');
-
-  // Receipt thumbnail — tap to open full view
-  document.getElementById('recent-list').querySelectorAll('[data-expid]').forEach(function(img){
-    img.addEventListener('click', function(e){
-      e.stopPropagation();
-      e.preventDefault();
-      openReceiptView(this.getAttribute('data-expid'));
-    });
-  });
 
   // Swipe to delete
   filtered.forEach(e=>initSwipe(e.id));
@@ -2579,6 +2807,229 @@ function useScan(){
 }
 
 
+
+// ── DEBTS UI ──────────────────────────────────────────────────────────────
+
+function renderDebts(){
+  const stats = debtStats();
+  const debts = (S.debts||[]);
+
+  // Summary cards
+  const mEl = document.getElementById('debt-total-monthly');
+  const bEl = document.getElementById('debt-total-balance');
+  if(mEl) mEl.textContent = '€'+stats.totalMonthly.toFixed(2);
+  if(bEl) bEl.textContent = '€'+stats.totalBalance.toFixed(2);
+
+  // Progress bar - based on initial total vs current
+  const initTotal = INITIAL_DEBTS.reduce((s,d)=>s+d.balance,0);
+  const paidTotal = debts.filter(d=>d.status==='paid').reduce((s,d)=>s+d.balance,0);
+  const pct = initTotal > 0 ? Math.round((paidTotal/initTotal)*100) : 0;
+  const pBar = document.getElementById('debt-progress-bar');
+  const pPct = document.getElementById('debt-progress-pct');
+  const pLbl = document.getElementById('debt-progress-lbl');
+  if(pBar) pBar.style.width = pct+'%';
+  if(pPct) pPct.textContent = pct+'%';
+  if(pLbl) pLbl.textContent = pct > 0 ? pct+'% debt cleared' : 'Debt payoff tracker';
+
+  // Debt-free date estimate
+  const dfEl = document.getElementById('debt-free-date');
+  if(dfEl){
+    if(stats.activeCount === 0){
+      dfEl.textContent = '🎉 All debts cleared!';
+    } else {
+      const monthsLeft = stats.monthsToFree;
+      const freeDate = new Date();
+      freeDate.setMonth(freeDate.getMonth() + monthsLeft);
+      const opts = {month:'long',year:'numeric'};
+      dfEl.textContent = 'Debt-free by ' + freeDate.toLocaleDateString('en-GB',opts) + ' ('+monthsLeft+' months)';
+    }
+  }
+
+  // Render snowball
+  renderSnowball();
+
+  // Render debt list - active first, then paid
+  const list = document.getElementById('debt-list');
+  if(!list) return;
+
+  const sorted = [...debts].sort((a,b)=>{
+    if(a.status!==b.status) return a.status==='active'?-1:1;
+    return a.balance - b.balance;
+  });
+
+  if(!sorted.length){
+    list.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">No installments yet. Tap + Add to get started.</div>';
+    return;
+  }
+
+  list.innerHTML = sorted.map(d => {
+    const remaining = d.total - d.paid;
+    const isPaid = d.status === 'paid';
+    return `
+    <div class="debt-card${isPaid?' paid':''}" id="dcard-${d.id}">
+      <div class="debt-card-hdr">
+        <div class="debt-card-desc">${d.description}</div>
+        <div class="debt-card-balance${isPaid?' paid':''}">€${d.balance.toFixed(2)}</div>
+      </div>
+      <div class="debt-card-meta">
+        <span class="debt-badge ${d.status}">${isPaid?'✓ Closed':'Active'}</span>
+        <span class="debt-ratio">${d.paid}/${d.total} paid</span>
+        <span class="debt-monthly">€${d.monthly.toFixed(2)}/mo</span>
+        ${!isPaid?`<span style="font-size:11px;color:var(--muted)">${remaining} mo left</span>`:''}
+        <span style="font-size:11px;color:var(--dim)">${d.date}</span>
+      </div>
+      <div class="debt-actions">
+        <button class="debt-action-btn" onclick="openDebtModal('${d.id}')">✏️ Edit</button>
+        ${!isPaid
+          ? `<button class="debt-action-btn close" onclick="confirmCloseDebt('${d.id}')">✓ Close</button>`
+          : `<button class="debt-action-btn" onclick="reopenDebt('${d.id}')">↩ Reopen</button>`
+        }
+        <button class="debt-action-btn del" onclick="confirmDeleteDebt('${d.id}')">🗑 Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderSnowball(){
+  const el = document.getElementById('snowball-result');
+  if(!el) return;
+  const extra = parseFloat(document.getElementById('debt-extra-input')?.value||'100')||0;
+  S.debtExtraBudget = extra;
+
+  const months = snowball(extra);
+  const activeDebts = (S.debts||[]).filter(d=>d.status==='active');
+
+  if(!activeDebts.length){
+    el.innerHTML = '<div class="snowball-empty">🎉 No active debts!</div>';
+    return;
+  }
+
+  let totalFreedMonthly = 0;
+  el.innerHTML = months.map((m,mi) => {
+    totalFreedMonthly += m.freedThisMonth;
+    if(!m.closeable.length) return `
+      <div class="snowball-month">
+        <div class="snowball-month-hdr">
+          <div class="snowball-month-title">Month ${m.month}</div>
+          <div class="snowball-month-budget">€${m.available.toFixed(2)} available</div>
+        </div>
+        <div class="snowball-empty" style="padding:8px 0;font-size:12px">
+          No loans closeable — saving €${m.leftover.toFixed(2)} for next month
+        </div>
+      </div>`;
+
+    const closeIds = m.closeable.map(d=>`'${d.id}'`).join(',');
+    return `
+      <div class="snowball-month">
+        <div class="snowball-month-hdr">
+          <div class="snowball-month-title">Month ${m.month}</div>
+          <div class="snowball-month-budget">€${m.available.toFixed(2)} available</div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Call your bank to fully close these:</div>
+        ${m.closeable.map(d=>`
+          <div class="snowball-item">
+            <div class="snowball-item-dot"></div>
+            <div class="snowball-item-desc">${d.description.replace('Blerje Pos Prishtine Gjirafa Inc-dega Kosove','Gjirafa POS').replace('Blerje Pos Pristina Gjirafa Inc','Gjirafa POS')}</div>
+            <div class="snowball-item-cost">€${d.balance.toFixed(2)}</div>
+            <div class="snowball-item-save">-€${d.monthly.toFixed(2)}/mo</div>
+          </div>`).join('')}
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+          ${m.freedThisMonth>0?`<div class="snowball-freed">↓ Frees €${m.freedThisMonth.toFixed(2)}/mo</div>`:'<div></div>'}
+          ${mi===0?`<button class="snowball-simulate-btn" style="width:auto;padding:8px 16px" onclick="simulateClosures([${closeIds}])">Simulate ✓</button>`:''}
+        </div>
+      </div>`;
+  }).join('');
+
+  // Show total freed
+  if(totalFreedMonthly > 0){
+    el.innerHTML += `<div style="text-align:center;padding:10px;font-size:12px;color:var(--lime-text);font-weight:600">Total freed after 3 months: €${totalFreedMonthly.toFixed(2)}/mo</div>`;
+  }
+}
+
+// ── DEBT MODAL ─────────────────────────────────────────────────────────────
+let _editDebtId = null;
+
+function openDebtModal(id){
+  _editDebtId = id || null;
+  const modal = document.getElementById('debt-modal');
+  const title = document.getElementById('debt-modal-title');
+  if(!modal) return;
+
+  if(id){
+    const d = (S.debts||[]).find(x=>x.id===id);
+    if(!d) return;
+    title.textContent = 'Edit Installment';
+    document.getElementById('dm-id').value = d.id;
+    document.getElementById('dm-desc').value = d.description;
+    document.getElementById('dm-monthly').value = d.monthly;
+    document.getElementById('dm-balance').value = d.balance;
+    document.getElementById('dm-paid').value = d.paid;
+    document.getElementById('dm-total').value = d.total;
+    document.getElementById('dm-date').value = d.date;
+  } else {
+    title.textContent = 'Add Installment';
+    document.getElementById('dm-id').value = '';
+    document.getElementById('dm-desc').value = '';
+    document.getElementById('dm-monthly').value = '';
+    document.getElementById('dm-balance').value = '';
+    document.getElementById('dm-paid').value = '';
+    document.getElementById('dm-total').value = '24';
+    document.getElementById('dm-date').value = new Date().toLocaleDateString('en-GB').split('/').join('.');
+  }
+  modal.classList.remove('hidden');
+  hap('light');
+}
+
+function closeDebtModal(e){
+  if(e && e.target !== document.getElementById('debt-modal')) return;
+  document.getElementById('debt-modal').classList.add('hidden');
+  _editDebtId = null;
+}
+
+function saveDebtModal(){
+  const desc = document.getElementById('dm-desc').value.trim();
+  const monthly = parseFloat(document.getElementById('dm-monthly').value);
+  const balance = parseFloat(document.getElementById('dm-balance').value);
+  const paid = parseInt(document.getElementById('dm-paid').value)||0;
+  const total = parseInt(document.getElementById('dm-total').value)||24;
+  const date = document.getElementById('dm-date').value.trim();
+
+  if(!desc){ toast('Add a description'); return; }
+  if(!monthly||monthly<=0){ toast('Enter monthly amount'); return; }
+  if(!balance||balance<0){ toast('Enter remaining balance'); return; }
+  if(total<=0){ toast('Enter total installments'); return; }
+
+  const id = document.getElementById('dm-id').value;
+  if(id){
+    updateDebt(id, {description:desc, monthly, balance, paid, total, date});
+    toast('Updated ✓', 'ok');
+  } else {
+    addDebt({description:desc, monthly, balance, paid, total, date});
+    toast('Added ✓', 'ok');
+  }
+  document.getElementById('debt-modal').classList.add('hidden');
+  hap('success');
+}
+
+function confirmCloseDebt(id){
+  const d = (S.debts||[]).find(x=>x.id===id);
+  if(!d) return;
+  hap('medium');
+  markDebtPaid(id);
+  toast('Loan marked as closed ✓', 'ok');
+}
+
+function reopenDebt(id){
+  updateDebt(id, {status:'active', paidAt:null});
+  toast('Loan reopened', 'ok');
+}
+
+function confirmDeleteDebt(id){
+  hap('medium');
+  deleteDebt(id);
+  toast('Deleted', 'warn');
+}
+
 // ── CLOUD SYNC ────────────────────────────────────────────────────────────
 let syncTimer = null;
 let lastSyncTs = null;
@@ -3466,14 +3917,11 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(
 
 
 ld();
+seedDebts();
 autoLogRecurring();
 renderDash();
 document.getElementById('hdr-date').textContent=mo();
 // Wire up onboarding buttons
-// Wire up tab navigation via event listeners (more reliable than onclick)
-document.querySelectorAll('[data-tab]').forEach(btn => {
-  btn.addEventListener('click', function(){ goto(this.dataset.tab, this); });
-});
 document.getElementById('ob-btn').addEventListener('click', obNext);
 updateNotifBtn();
 document.getElementById('ob-skip').addEventListener('click', obFinish);
@@ -3517,172 +3965,47 @@ window.addEventListener('resize',()=>{
 </script>
 
 
-</html><!-- SCANNER MODAL -->
-<div class="scanner-modal" id="scanner-modal">
-  <div class="scanner-modal-hdr">
-    <div class="scanner-modal-title">📷 Receipt Scanner</div>
-    <button class="scanner-close" onclick="closeScannerModal()">✕</button>
-  </div>
-  <div class="scanner-body">
-
-    <!-- LIVE CAMERA VIEW -->
-    <div id="scanner-camera-wrap" style="display:none;position:relative;margin-bottom:16px">
-      <video id="scanner-video" autoplay playsinline muted
-        style="width:100%;border-radius:16px;max-height:320px;object-fit:cover;background:#000;display:block"></video>
-      <!-- Document corner overlay -->
-      <canvas id="scanner-overlay" style="position:absolute;inset:0;width:100%;height:100%;border-radius:16px;pointer-events:none"></canvas>
-      <!-- Capture button -->
-      <div style="position:absolute;bottom:12px;left:0;right:0;display:flex;justify-content:center;gap:16px">
-        <button onclick="captureFromCamera()" style="width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,0.95);border:3px solid rgba(201,168,76,0.6);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 16px rgba(0,0,0,0.3)">📸</button>
-      </div>
-      <div style="position:absolute;top:12px;right:12px">
-        <button onclick="switchCameraSource()" style="padding:6px 12px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);border-radius:20px;color:#fff;font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif">Flip</button>
-      </div>
-    </div>
-
-    <!-- UPLOAD FALLBACK (shown when camera unavailable) -->
-    <div id="scanner-upload-wrap">
-      <div class="scanner-drop" id="scanner-drop" onclick="triggerScanFile()">
-        <span class="scanner-drop-icon">📸</span>
-        <div class="scanner-drop-title">Tap to scan a receipt</div>
-        <div class="scanner-drop-sub">Take a photo or choose from your library.<br>Works with receipts, bank screenshots, invoices.</div>
-      </div>
-    </div>
-
-    <!-- Camera toggle button -->
-    <button id="scanner-cam-btn" onclick="startLiveCamera()" style="width:100%;padding:11px;background:var(--surface);border:1px solid var(--border);border-radius:14px;color:var(--text);font-family:'Outfit',sans-serif;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:8px">
-      <span>📷</span> Use live camera instead
-    </button>
-
-    <div class="scanner-preview-wrap" id="scanner-preview-wrap">
-      <img id="scanner-preview-img" src="" alt="Receipt preview">
-      <button class="scanner-preview-clear" onclick="clearScan()">✕</button>
-    </div>
-
-    <div class="scanner-analysing" id="scanner-analysing">
-      <div class="scanner-analysing-ring"></div>
-      Analysing your receipt with AI…
-    </div>
-
-    <div class="scanner-result" id="scanner-result">
-      <div class="scanner-result-hdr">
-        <div class="scanner-result-dot"></div>
-        <div class="scanner-result-lbl">Detected</div>
-      </div>
-      <div class="scanner-result-row">
-        <span class="scanner-result-key">Amount</span>
-        <span class="scanner-result-val" id="scanner-amt">—</span>
-      </div>
-      <div class="scanner-result-row">
-        <span class="scanner-result-key">Description</span>
-        <span class="scanner-result-desc" id="scanner-desc">—</span>
-      </div>
-      <button class="scanner-use-btn" onclick="useScan()">Use this in Log ↗</button>
-    </div>
-
-    <div class="scanner-error" id="scanner-error"></div>
-
-    <div class="scanner-tips">
-      <div class="scanner-tips-title">Tips for best results</div>
-      <div class="scanner-tip">Flat surface, good lighting, no shadows</div>
-      <div class="scanner-tip">Make sure the total amount is clearly visible</div>
-      <div class="scanner-tip">Works with receipts, invoices, bank screenshots</div>
-    </div>
-
-  </div>
-</div><!-- RECEIPT VIEW MODAL -->
-<div class="modal-wrap hidden" id="receipt-view-modal" onclick="closeReceiptView()">
-  <div class="modal" style="max-width:420px" onclick="event.stopPropagation()">
+<!-- DEBT MODAL (Add/Edit) -->
+<div class="modal-wrap hidden" id="debt-modal" onclick="closeDebtModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-hdr">
-      <div class="modal-title">📷 Receipt</div>
-      <button class="modal-close" onclick="closeReceiptView()">✕</button>
-    </div>
-    <div style="padding:12px 16px 20px;text-align:center">
-      <img id="receipt-view-img" src="" style="width:100%;border-radius:12px;max-height:500px;object-fit:contain;cursor:zoom-in" onclick="this.style.maxHeight=this.style.maxHeight==='none'?'500px':'none'">
-      <div style="font-size:11px;color:var(--muted);margin-top:8px">Tap image to zoom · Tap outside to close</div>
-    </div>
-  </div>
-</div>
-
-<div class="modal-wrap hidden" id="split-modal">
-  <div class="modal">
-    <div class="modal-hdr">
-      <div class="modal-title">➗ New Split</div>
-      <button class="modal-close" onclick="closeSplitModal()">✕</button>
+      <div class="modal-title" id="debt-modal-title">Add Installment</div>
+      <button class="modal-close" onclick="closeDebtModal()">✕</button>
     </div>
     <div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:12px">
+      <input type="hidden" id="dm-id">
       <div class="fl-group">
         <div class="fl-lbl">Description</div>
-        <input class="fl-input" type="text" id="sm-desc" placeholder="e.g. Dinner, Trip, Groceries">
+        <input class="fl-input" type="text" id="dm-desc" placeholder="e.g. Blerje Pos Gjirafa" autocomplete="off">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fl-group">
+          <div class="fl-lbl">Monthly (€)</div>
+          <input class="fl-input" type="number" id="dm-monthly" placeholder="0.00" inputmode="decimal" step="0.01">
+        </div>
+        <div class="fl-group">
+          <div class="fl-lbl">Balance (€)</div>
+          <input class="fl-input" type="number" id="dm-balance" placeholder="0.00" inputmode="decimal" step="0.01">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fl-group">
+          <div class="fl-lbl">Paid installments</div>
+          <input class="fl-input" type="number" id="dm-paid" placeholder="0" inputmode="numeric">
+        </div>
+        <div class="fl-group">
+          <div class="fl-lbl">Total installments</div>
+          <input class="fl-input" type="number" id="dm-total" placeholder="24" inputmode="numeric">
+        </div>
       </div>
       <div class="fl-group">
-        <div class="fl-lbl">Total Amount (€)</div>
-        <input class="fl-input" type="number" id="sm-amount" placeholder="0.00" inputmode="decimal">
+        <div class="fl-lbl">Date</div>
+        <input class="fl-input" type="text" id="dm-date" placeholder="DD.MM.YYYY">
       </div>
-      <div class="fl-lbl" style="margin-bottom:4px">Split with</div>
-      <div id="sm-people" style="display:flex;flex-direction:column;gap:8px"></div>
-      <button onclick="addSmPerson()" style="width:100%;padding:10px;background:transparent;border:1.5px dashed var(--border2);border-radius:12px;color:var(--muted);font-family:'Outfit',sans-serif;font-size:13px;cursor:pointer">+ Add person</button>
-      <div id="sm-preview" style="display:none;background:var(--lime-bg);border:1px solid var(--lime-border);border-radius:12px;padding:12px 14px">
-        <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--lime-text);margin-bottom:8px">Each person owes</div>
-        <div id="sm-preview-rows"></div>
-      </div>
-      <button class="modal-save" onclick="saveSplit()">Save Split</button>
+      <button class="modal-save" id="dm-save-btn" onclick="saveDebtModal()">Save</button>
     </div>
   </div>
 </div>
-
-<div class="modal-wrap" id="goal-modal" onclick="closeGoalModal(event)">
-  <div class="modal">
-    <div class="modal-title">New savings goal</div>
-    <div class="modal-row"><div class="modal-lbl">Goal name</div><input class="fl-input" id="g-name" placeholder="e.g. iPhone 16, Holiday, Car…" autocorrect="off"></div>
-    <div class="modal-row"><div class="modal-lbl">Target amount (€)</div><input class="fl-input" id="g-target" type="number" placeholder="e.g. 500" inputmode="decimal"></div>
-    <div class="modal-row"><div class="modal-lbl">Icon</div><div class="emoji-grid" id="emoji-grid"></div></div>
-    <div class="modal-btn-row">
-      <button class="modal-cancel" onclick="closeGoalModal()">Cancel</button>
-      <button class="modal-save" onclick="saveGoal()">Save goal</button>
-    </div>
-  </div>
-</div>
-
-<div class="edit-modal-wrap" id="edit-modal" onclick="closeEditModal(event)">
-  <div class="modal">
-    <div class="modal-title">Edit expense</div>
-    <div class="modal-row"><div class="modal-lbl">Description</div><input class="fl-input" id="edit-name" placeholder="Expense name" autocorrect="off"></div>
-    <div class="modal-row"><div class="modal-lbl">Amount (€)</div><input class="fl-input" id="edit-amount" type="number" placeholder="0.00" inputmode="decimal"></div>
-    <div class="modal-row">
-      <div class="modal-lbl">Category</div>
-      <div class="cats" style="margin-bottom:0">
-        <div class="cat" id="edit-cat-needs" onclick="editPickCat('needs')"><div class="cat-emoji">🏠</div><div class="cat-name">Needs</div></div>
-        <div class="cat" id="edit-cat-wants" onclick="editPickCat('wants')"><div class="cat-emoji">🎉</div><div class="cat-name">Wants</div></div>
-        <div class="cat" id="edit-cat-savings" onclick="editPickCat('savings')"><div class="cat-emoji">💰</div><div class="cat-name">Savings</div></div>
-      </div>
-    </div>
-    <div class="modal-btn-row" style="margin-top:12px">
-      <button class="modal-cancel" onclick="closeEditModal()">Cancel</button>
-      <button class="modal-save" onclick="saveEdit()">Save</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-wrap" id="net-modal" onclick="closeNetModal(event)">
-  <div class="modal">
-    <div class="modal-title">Adjust savings balance</div>
-    <div class="modal-row"><div class="modal-lbl">Current balance (€)</div><input class="fl-input" id="net-input" type="number" placeholder="e.g. 1200" inputmode="decimal"></div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5">Enter your total savings balance — bank account, cash, whatever you consider saved. The app will track how it grows each month.</div>
-    <div class="modal-btn-row">
-      <button class="modal-cancel" onclick="closeNetModal()">Cancel</button>
-      <button class="modal-save" onclick="saveNet()">Save</button>
-    </div>
-  </div>
-</div>
-
-<canvas id="confetti-canvas">
-
-<div class="toast" id="toast"></div>
-
-<div class="scanner-tip">Works with any currency or language</div>
-
-
 
 </body>
 </html><!-- SCANNER MODAL -->
